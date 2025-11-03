@@ -230,286 +230,45 @@ async function showMyRoom() {
     const freeModeBtn = document.getElementById('free-mode-btn');
     const myRoomBtn = document.getElementById('my-room-btn');
     const schoolModeBtn = document.getElementById('school-mode-btn');
+    const localUserId = localStorage.getItem('localUserId');
 
     mainContent.innerHTML = `
         <h2>推し活マイルーム</h2>
-        <div class="my-room-tabs">
-            <button id="gallery-tab" class="active">ギャラリー</button>
-            <button id="calendar-tab">カレンダー</button>
-        </div>
-        <div id="my-room-content"></div>
+        <div id="my-room-gallery" class="gallery-grid"></div>
     `;
     myRoomBtn.classList.add('active');
     freeModeBtn.classList.remove('active');
     schoolModeBtn.classList.remove('active');
 
-    const galleryTab = document.getElementById('gallery-tab');
-    const calendarTab = document.getElementById('calendar-tab');
-
-    // 初期表示はギャラリー
-    showMyRoomGallery();
-
-    galleryTab.addEventListener('click', () => {
-        galleryTab.classList.add('active');
-        calendarTab.classList.remove('active');
-        showMyRoomGallery();
-    });
-
-    calendarTab.addEventListener('click', () => {
-        calendarTab.classList.add('active');
-        galleryTab.classList.remove('active');
-        showMyRoomCalendar();
-    });
-}
-
-async function showMyRoomGallery() {
-    const contentArea = document.getElementById('my-room-content');
-    const localUserId = localStorage.getItem('localUserId');
-
-    contentArea.innerHTML = `<div id="my-room-gallery" class="gallery-grid"><p>読み込み中...</p></div>`;
     const gallery = document.getElementById('my-room-gallery');
+    gallery.innerHTML = '<p>読み込み中...</p>';
 
     try {
-        // 複合インデックスに合わせてクエリを単純化
+        // NOTE: This query requires a composite index in Firestore.
+        // If this feature fails, create an index on:
+        // Collection: 'thoughts', Fields: 'localUserId' (asc), 'imageUrl' (!= null), 'createdAt' (desc)
         const snapshot = await db.collection('thoughts')
             .where('localUserId', '==', localUserId)
+            .where('imageUrl', '!=', null)
             .orderBy('createdAt', 'desc')
             .get();
 
-        // JavaScript側で画像URLの存在をフィルタリング
-        const imagePosts = [];
-        snapshot.forEach(doc => {
-            const post = doc.data();
-            if (post.imageUrl) {
-                // postIdをpostオブジェクトに含めておく
-                post.id = doc.id;
-                imagePosts.push(post);
-            }
-        });
-
-        if (imagePosts.length === 0) {
+        gallery.innerHTML = '';
+        if (snapshot.empty) {
             gallery.innerHTML = '<p>まだ画像が投稿されていません。</p>';
             return;
         }
-
-        gallery.innerHTML = ''; // 読み込みメッセージをクリア
-        imagePosts.forEach(post => {
-            const postId = post.id;
-
-            // 各画像とメモ機能を含むコンテナを作成
-            const galleryItem = document.createElement('div');
-            galleryItem.className = 'gallery-item';
-
+        snapshot.forEach(doc => {
+            const post = doc.data();
             const img = document.createElement('img');
             img.src = post.imageUrl;
             img.alt = '投稿画像';
-
-            const memoButton = document.createElement('button');
-            memoButton.textContent = 'メモを追加/編集';
-            memoButton.onclick = () => showMemoPopup(postId);
-
-            galleryItem.appendChild(img);
-            galleryItem.appendChild(memoButton);
-            gallery.appendChild(galleryItem);
+            gallery.appendChild(img);
         });
     } catch (error) {
         console.error("マイルームの画像取得エラー:", error);
-        gallery.innerHTML = '<p>画像の読み込みに失敗しました。考えられる原因：データベースのインデックスが未設定です。</p>';
+        gallery.innerHTML = '<p>画像の読み込みに失敗しました。</p>';
     }
-}
-
-// `jsCalendar`のインスタンスを保持するためのグローバル変数
-let myCalendar = null;
-
-async function showMyRoomCalendar() {
-    const contentArea = document.getElementById('my-room-content');
-    const localUserId = localStorage.getItem('localUserId');
-
-    contentArea.innerHTML = `
-        <h3>カレンダー</h3>
-        <div class="calendar-container">
-            <div id="my-calendar"></div>
-            <div class="event-form">
-                <h4>記念日を登録</h4>
-                <input type="text" id="event-date" placeholder="日付を選択" readonly>
-                <input type="text" id="event-title" placeholder="記念日の名前">
-                <button id="save-event-btn">登録</button>
-            </div>
-        </div>
-        <div class="event-list">
-            <h4>登録済みの記念日</h4>
-            <ul id="event-list-ul"></ul>
-        </div>
-    `;
-
-    // カレンダーを初期化
-    const calendarEl = document.getElementById('my-calendar');
-    // 既にインスタンスが存在すれば破棄して再生成
-    if (myCalendar && myCalendar.destroy) {
-        myCalendar.destroy();
-    }
-    myCalendar = jsCalendar.new(calendarEl, new Date(), {
-        language: 'ja',
-        monthFormat: 'month YYYY'
-    });
-
-    // 日付クリックで入力欄に日付をセット
-    const eventDateInput = document.getElementById('event-date');
-    myCalendar.onDateClick((event, date) => {
-        // yyyy-mm-dd 形式にフォーマット
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        eventDateInput.value = `${year}-${month}-${day}`;
-    });
-
-    // イベント登録ボタンの処理
-    document.getElementById('save-event-btn').addEventListener('click', saveCalendarEvent);
-
-    // 登録済みイベントの読み込みと表示
-    loadCalendarEvents();
-}
-
-// カレンダーイベントをFirestoreに保存する関数
-async function saveCalendarEvent() {
-    const date = document.getElementById('event-date').value;
-    const title = document.getElementById('event-title').value.trim();
-    const localUserId = localStorage.getItem('localUserId');
-
-    if (!date || !title) {
-        showCustomAlert('日付と記念日の名前を入力してください。');
-        return;
-    }
-
-    try {
-        await db.collection('userCalendarEvents').add({
-            userId: localUserId,
-            date: date,
-            title: title,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showCustomAlert('記念日を登録しました！');
-        document.getElementById('event-date').value = '';
-        document.getElementById('event-title').value = '';
-        loadCalendarEvents(); // リストを再読み込み
-    } catch (error) {
-        console.error("記念日の登録エラー:", error);
-        showCustomAlert('記念日の登録に失敗しました。');
-    }
-}
-
-// Firestoreからカレンダーイベントを読み込み表示する関数
-async function loadCalendarEvents() {
-    const eventListUl = document.getElementById('event-list-ul');
-    const localUserId = localStorage.getItem('localUserId');
-    if (!eventListUl) return;
-
-    eventListUl.innerHTML = '<li>読み込み中...</li>';
-
-    try {
-        const snapshot = await db.collection('userCalendarEvents')
-            .where('userId', '==', localUserId)
-            .orderBy('date', 'asc')
-            .get();
-
-        eventListUl.innerHTML = '';
-        if (snapshot.empty) {
-            eventListUl.innerHTML = '<li>まだ記念日は登録されていません。</li>';
-            return;
-        }
-
-        const eventDates = [];
-        snapshot.forEach(doc => {
-            const event = doc.data();
-            const eventId = doc.id;
-
-            const li = document.createElement('li');
-            li.textContent = `${event.date}: ${event.title}`;
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = '削除';
-            deleteBtn.className = 'delete-event-btn';
-            deleteBtn.onclick = () => deleteCalendarEvent(eventId);
-
-            li.appendChild(deleteBtn);
-            eventListUl.appendChild(li);
-
-            // カレンダーにマークするための日付を収集
-            eventDates.push(new Date(event.date));
-        });
-
-        // カレンダーにイベントのある日をマーク (selectを使用)
-        if (myCalendar) {
-            myCalendar.clearselect(); // 既存の選択をクリア
-            myCalendar.select(eventDates);
-        }
-
-    } catch (error) {
-        console.error("記念日の読み込みエラー:", error);
-        eventListUl.innerHTML = '<li>記念日の読み込みに失敗しました。</li>';
-    }
-}
-
-// カレンダーイベントを削除する関数
-async function deleteCalendarEvent(eventId) {
-    showCustomConfirm('この記念日を削除しますか？', async () => {
-        try {
-            await db.collection('userCalendarEvents').doc(eventId).delete();
-            showCustomAlert('記念日を削除しました。');
-            loadCalendarEvents(); // リストを再読み込み
-        } catch (error) {
-            console.error("記念日の削除エラー:", error);
-            showCustomAlert('記念日の削除に失敗しました。');
-        }
-    });
-}
-
-// メモ入力用のポップアップを表示する関数
-async function showMemoPopup(postId) {
-    const popup = document.getElementById('memo-popup');
-    const textarea = document.getElementById('memo-textarea');
-    const saveBtn = document.getElementById('save-memo-btn');
-    const cancelBtn = document.getElementById('cancel-memo-btn');
-    const localUserId = localStorage.getItem('localUserId');
-
-    // Firestoreから既存のメモを取得
-    const memoRef = db.collection('userMemos').doc(`${localUserId}_${postId}`);
-    try {
-        const doc = await memoRef.get();
-        if (doc.exists) {
-            textarea.value = doc.data().memo;
-        } else {
-            textarea.value = '';
-        }
-    } catch (error) {
-        console.error("メモの取得エラー:", error);
-        textarea.value = 'メモの読み込みに失敗しました。';
-    }
-
-    popup.style.display = 'flex';
-
-    // 保存ボタンのクリックイベント
-    saveBtn.onclick = async () => {
-        const memoText = textarea.value.trim();
-        try {
-            await memoRef.set({
-                userId: localUserId,
-                postId: postId,
-                memo: memoText,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }); // 存在しない場合は作成、存在する場合は更新
-            popup.style.display = 'none';
-            showCustomAlert('メモを保存しました。');
-        } catch (error) {
-            console.error("メモの保存エラー:", error);
-            showCustomAlert('メモの保存に失敗しました。');
-        }
-    };
-
-    // キャンセルボタンのクリックイベント
-    cancelBtn.onclick = () => {
-        popup.style.display = 'none';
-    };
 }
 
 async function showSchoolMode() {
@@ -1276,11 +1035,6 @@ async function listenForAttendanceChecks() {
 
     db.collection('groups').doc(activeGroupId).collection('attendanceChecks').orderBy('createdAt', 'desc')
         .onSnapshot(async snapshot => {
-            if (snapshot.empty) {
-                listEl.innerHTML = '<p>現在、出欠確認はありません。</p>';
-                return;
-            }
-
             // 先にメンバー情報を取得
             const membersMap = new Map();
             const membersSnapshot = await db.collection('groups').doc(activeGroupId).collection('members').get();
@@ -1355,7 +1109,7 @@ async function showGroupSettings() {
         membersHTML += `
             <div>
                 <label>
-                    <input type-="checkbox" class="permission-checkbox" data-member-id="${memberId}" ${canCreateAttendance ? 'checked' : ''}>
+                    <input type="checkbox" class="permission-checkbox" data-member-id="${memberId}" ${canCreateAttendance ? 'checked' : ''}>
                     ${memberName}に出欠確認の作成を許可
                 </label>
             </div>

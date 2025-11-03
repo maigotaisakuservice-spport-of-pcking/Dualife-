@@ -215,47 +215,9 @@ footer {
     border-radius: 4px;
 }
 
-/* My Room Tabs */
-.my-room-tabs {
-    display: flex;
-    margin-bottom: 1rem;
-}
-
-.my-room-tabs button {
-    flex: 1;
-    padding: 0.75rem;
-    border: 1px solid #ccc;
-    background-color: #f0f0f0;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.my-room-tabs button.active {
-    background-color: #007bff;
-    color: white;
-    border-color: #007bff;
-}
-
-.my-room-tabs button:first-child {
-    border-top-left-radius: 8px;
-    border-bottom-left-radius: 8px;
-}
-
-.my-room-tabs button:last-child {
-    border-top-right-radius: 8px;
-    border-bottom-right-radius: 8px;
-}
-
 .gallery-item {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-}
-
-.gallery-item button {
-    width: 100%;
-    padding: 5px;
-    font-size: 0.8rem;
 }
 
 .delete-album-btn {
@@ -270,88 +232,6 @@ footer {
     margin-top: -5px; /* 画像との隙間を詰める */
     border-top-left-radius: 0;
     border-top-right-radius: 0;
-}
-
-#memo-popup textarea {
-    width: 100%;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 1rem;
-    box-sizing: border-box; /* paddingを含めてwidth 100%にする */
-}
-
-#memo-popup-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-}
-
-/* Calendar Styles */
-.calendar-container {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap; /* 画面が小さい場合に折り返す */
-}
-
-#my-calendar {
-    max-width: 300px; /* カレンダーの最大幅 */
-    flex-grow: 1;
-}
-
-.event-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    flex-grow: 1;
-    min-width: 200px;
-}
-
-.event-form input {
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.event-form button {
-    padding: 0.6rem;
-}
-
-.event-list {
-    margin-top: 1rem;
-}
-
-.event-list ul {
-    list-style-type: none;
-    padding: 0;
-}
-
-.event-list li {
-    background-color: #f9f9f9;
-    padding: 0.75rem;
-    border-radius: 4px;
-    margin-bottom: 0.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.delete-event-btn {
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-
-/* jsCalendar selected date style */
-.jsCalendar-selected {
-    background-color: #007bff !important;
-    color: white !important;
-    border-radius: 50%;
 }
 
 /* スクールモード（グループ参加フォーム）のスタイル */
