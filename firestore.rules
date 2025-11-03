@@ -1,3 +1,6 @@
+// WARNING: These rules are insecure and allow anyone to read and write to your database.
+// This is for development and testing purposes only.
+// For a production application, you must implement proper security rules.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {

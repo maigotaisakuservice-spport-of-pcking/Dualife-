@@ -1,6 +1,9 @@
 // 1. 初期設定と変数定義
 // =============================================
 
+// WARNING: Do not expose your API keys in client-side code in a production environment.
+// These keys are provided for demonstration purposes only.
+// Consider using a backend service to manage authentication and API calls securely.
 // Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyC0whVaW_DeLNhCnr9sRuxqMrTtEJSPchM",
@@ -241,6 +244,9 @@ async function showMyRoom() {
     gallery.innerHTML = '<p>読み込み中...</p>';
 
     try {
+        // NOTE: This query requires a composite index in Firestore.
+        // If this feature fails, create an index on:
+        // Collection: 'thoughts', Fields: 'localUserId' (asc), 'imageUrl' (!= null), 'createdAt' (desc)
         const snapshot = await db.collection('thoughts')
             .where('localUserId', '==', localUserId)
             .where('imageUrl', '!=', null)
@@ -469,17 +475,21 @@ function listenForPosts() {
  * @returns {HTMLElement} 投稿を表すdiv要素
  */
 function renderPost(post, postId) {
-    // この関数は変更しない
     const postDiv = document.createElement('div');
     postDiv.className = 'post';
 
     const nickname = post.nickname || 'ななしさん';
     const text = post.text;
     const imageUrl = post.imageUrl;
-    const reactions = post.reactions || {}; // スタンプの数
+    const reactions = post.reactions || {};
 
-    // タイムスタンプをフォーマット
     const timestamp = post.createdAt ? post.createdAt.toDate().toLocaleString('ja-JP') : '...';
+
+    let imageHTML = '';
+    if (imageUrl) {
+        // 画像がクリックされたときにopenImageModalを呼び出す
+        imageHTML = `<img src="${imageUrl}" alt="投稿画像" class="post-image" onclick="openImageModal('${imageUrl}')">`;
+    }
 
     postDiv.innerHTML = `
         <div class="post-header">
@@ -487,7 +497,7 @@ function renderPost(post, postId) {
             <span class="post-time">${timestamp}</span>
         </div>
         <p class="post-text">${text}</p>
-        ${imageUrl ? `<img src="${imageUrl}" alt="投稿画像" class="post-image">` : ''}
+        ${imageHTML}
         <div class="post-footer">
             <button onclick="updateStampCount('${postId}', 'wakaru')">わかる</button>
             <span id="stamp-wakaru-${postId}">${reactions.wakaru || 0}</span>
@@ -736,3 +746,28 @@ function listenForAlbumImages() {
             });
         });
 }
+
+// 7. 画像モーダル機能
+// =============================================
+
+/**
+ * 画像モーダルを開く関数
+ * @param {string} imageUrl 表示する画像のURL
+ */
+function openImageModal(imageUrl) {
+    const modal = document.getElementById('image-modal');
+    const modalImage = document.getElementById('modal-image-content');
+
+    modalImage.src = imageUrl;
+    modal.style.display = 'flex';
+}
+
+// モーダルを閉じるためのイベントリスナー
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('image-modal');
+    if (modal) {
+        modal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+    }
+});
