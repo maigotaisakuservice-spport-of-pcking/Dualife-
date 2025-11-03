@@ -33,6 +33,12 @@
     <!-- Cloudinary SDK -->
     <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
 
+    <!-- jsCalendar v1.4.5 -->
+    <link rel="stylesheet" href="https://unpkg.com/simple-jscalendar@1.4.5/source/jsCalendar.min.css" integrity="sha384-CTBW6RKuDwU/TWFl2qLavDqLuZtBzcGxBXY8WvQ0lShXglO/DsUvGkXza+6QTxs0" crossorigin="anonymous">
+    <script src="https://unpkg.com/simple-jscalendar@1.4.5/source/jsCalendar.min.js" integrity="sha384-F3Wc9EgweCL3C58eDn9902kdEH6bTDL9iW2JgwQxJYUIeudwhm4Wu9JhTkKJUtIJ" crossorigin="anonymous"></script>
+    <!-- jsCalendar Japanese language -->
+    <script src="https://unpkg.com/simple-jscalendar@1.4.5/source/jsCalendar.lang.ja.js"></script>
+
     <script src="app.js"></script>
 
     <!-- 利用規約同意ポップアップ -->
@@ -52,6 +58,18 @@
                 <button id="custom-popup-ok">OK</button>
                 <button id="custom-popup-confirm">はい</button>
                 <button id="custom-popup-cancel">いいえ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メモ入力ポップアップ -->
+    <div id="memo-popup" class="popup-overlay" style="display: none;">
+        <div class="popup-content">
+            <h3>画像メモ</h3>
+            <textarea id="memo-textarea" rows="5" placeholder="この画像に関するメモを入力..."></textarea>
+            <div id="memo-popup-buttons">
+                <button id="save-memo-btn">保存</button>
+                <button id="cancel-memo-btn">キャンセル</button>
             </div>
         </div>
     </div>
