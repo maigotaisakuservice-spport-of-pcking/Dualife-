@@ -279,6 +279,12 @@ footer {
     cursor: pointer;
 }
 
+.group-info button.danger {
+    background-color: #d9534f;
+    color: white;
+    border-color: #d43f3a;
+}
+
 .warning-text {
     color: #d9534f;
     font-size: 0.8em;

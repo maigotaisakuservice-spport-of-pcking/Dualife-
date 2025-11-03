@@ -266,12 +266,13 @@ async function showMyRoom() {
     }
 }
 
-function showSchoolMode() {
+async function showSchoolMode() {
     const mainContent = document.getElementById('main-content');
     const freeModeBtn = document.getElementById('free-mode-btn');
     const myRoomBtn = document.getElementById('my-room-btn');
     const schoolModeBtn = document.getElementById('school-mode-btn');
     const groupId = localStorage.getItem('groupId');
+    const localUserId = localStorage.getItem('localUserId');
 
     mainContent.innerHTML = `<h2>スクールモード</h2>`;
     schoolModeBtn.classList.add('active');
@@ -279,6 +280,11 @@ function showSchoolMode() {
     myRoomBtn.classList.remove('active');
 
     if (groupId) {
+        // グループ情報を取得して所有者かどうかを判断
+        const groupDoc = await db.collection('groups').doc(groupId).get();
+        const groupData = groupDoc.exists ? groupDoc.data() : {};
+        const isOwner = groupData.createdBy === localUserId;
+
         mainContent.innerHTML += `
             <div class="school-mode-container">
                 <div class="school-mode-tabs">
@@ -286,20 +292,28 @@ function showSchoolMode() {
                     <button id="event-album-tab">イベントアルバム</button>
                 </div>
                 <div id="school-mode-content"></div>
-                <p class="group-info">招待コード: ${groupId} <button id="leave-group-btn">グループを抜ける</button></p>
+                <p class="group-info">
+                    招待コード: ${groupId}
+                    <button id="leave-group-btn">グループを抜ける</button>
+                    ${isOwner ? '<button id="delete-group-btn" class="danger">グループを削除</button>' : ''}
+                </p>
             </div>
         `;
         document.getElementById('leave-group-btn').addEventListener('click', leaveGroup);
+        if (isOwner) {
+            document.getElementById('delete-group-btn').addEventListener('click', deleteGroup);
+        }
 
         const contactBookTab = document.getElementById('contact-book-tab');
         const eventAlbumTab = document.getElementById('event-album-tab');
 
-        showContactBook();
+        // グループ情報を渡して連絡帳を表示
+        showContactBook(groupData);
 
         contactBookTab.addEventListener('click', () => {
             contactBookTab.classList.add('active');
             eventAlbumTab.classList.remove('active');
-            showContactBook();
+            showContactBook(groupData);
         });
         eventAlbumTab.addEventListener('click', () => {
             eventAlbumTab.classList.add('active');
@@ -550,9 +564,34 @@ function leaveGroup() {
 }
 
 /**
+ * グループを削除する関数（所有者のみ）
+ */
+async function deleteGroup() {
+    const groupId = localStorage.getItem('groupId');
+    if (!groupId) return;
+
+    showCustomConfirm("本当にこのグループを削除しますか？\n連絡帳やアルバムのデータもすべて失われ、元に戻すことはできません。", async () => {
+        try {
+            // Firestoreからグループドキュメントを削除
+            await db.collection('groups').doc(groupId).delete();
+
+            // ※注：サブコレクション(messages, album)は自動では削除されないが、
+            // グループ本体がなくなるため、実質的にアクセス不能になる。
+
+            localStorage.removeItem('groupId');
+            showCustomAlert("グループを削除しました。");
+            showSchoolMode(); // UIを更新
+        } catch (error) {
+            console.error("グループの削除に失敗しました:", error);
+            showCustomAlert("グループの削除に失敗しました。");
+        }
+    });
+}
+
+/**
  * スクールモードの連絡帳UIを表示・制御する関数
  */
-function showContactBook() {
+function showContactBook(groupData) { // groupDataを受け取る
     const contentArea = document.getElementById('school-mode-content');
     contentArea.innerHTML = `
         <h3>連絡帳</h3>
@@ -566,7 +605,7 @@ function showContactBook() {
     `;
 
     document.getElementById('submit-contact-btn').addEventListener('click', submitContactMessage);
-    listenForContactMessages();
+    listenForContactMessages(groupData); // groupDataを渡す
 }
 
 /**
@@ -596,9 +635,10 @@ async function submitContactMessage() {
 /**
  * 連絡帳のメッセージをリアルタイムで監視・表示する関数
  */
-function listenForContactMessages() {
+function listenForContactMessages(groupData) { // groupDataを受け取る
     const timeline = document.getElementById('contact-timeline');
     const groupId = localStorage.getItem('groupId');
+    const groupOwnerId = groupData.createdBy; // グループ作成者のIDを取得
     if (!timeline || !groupId) return;
 
     db.collection('groups').doc(groupId).collection('messages').orderBy('createdAt', 'desc')
@@ -606,10 +646,13 @@ function listenForContactMessages() {
             timeline.innerHTML = '';
             snapshot.forEach(doc => {
                 const message = doc.data();
+                const isOwner = message.senderId === groupOwnerId; // 送信者が作成者か判定
+                const crownIcon = isOwner ? '👑' : ''; // 作成者なら王冠アイコンを表示
+
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message-item ${message.type}`; // 'important' or 'chat'
                 messageDiv.innerHTML = `
-                    <p><strong>${message.senderNickname || 'ななしさん'}</strong></p>
+                    <p><strong>${crownIcon}${message.senderNickname || 'ななしさん'}</strong></p>
                     <p>${message.text}</p>
                 `;
                 timeline.appendChild(messageDiv);
