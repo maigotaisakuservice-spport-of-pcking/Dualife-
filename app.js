@@ -270,22 +270,31 @@ async function showMyRoomGallery() {
     const gallery = document.getElementById('my-room-gallery');
 
     try {
+        // 複合インデックスに合わせてクエリを単純化
         const snapshot = await db.collection('thoughts')
             .where('localUserId', '==', localUserId)
-            .where('imageUrl', '!=', null)
             .orderBy('createdAt', 'desc')
             .get();
 
-        if (snapshot.empty) {
+        // JavaScript側で画像URLの存在をフィルタリング
+        const imagePosts = [];
+        snapshot.forEach(doc => {
+            const post = doc.data();
+            if (post.imageUrl) {
+                // postIdをpostオブジェクトに含めておく
+                post.id = doc.id;
+                imagePosts.push(post);
+            }
+        });
+
+        if (imagePosts.length === 0) {
             gallery.innerHTML = '<p>まだ画像が投稿されていません。</p>';
             return;
         }
 
         gallery.innerHTML = ''; // 読み込みメッセージをクリア
-        snapshot.forEach(doc => {
-            const post = doc.data();
-            // `doc.id` を使って、各投稿のユニークなIDを取得
-            const postId = doc.id;
+        imagePosts.forEach(post => {
+            const postId = post.id;
 
             // 各画像とメモ機能を含むコンテナを作成
             const galleryItem = document.createElement('div');
@@ -297,7 +306,6 @@ async function showMyRoomGallery() {
 
             const memoButton = document.createElement('button');
             memoButton.textContent = 'メモを追加/編集';
-            // `postId` を渡して、どの投稿に対するメモかを識別
             memoButton.onclick = () => showMemoPopup(postId);
 
             galleryItem.appendChild(img);
@@ -306,7 +314,7 @@ async function showMyRoomGallery() {
         });
     } catch (error) {
         console.error("マイルームの画像取得エラー:", error);
-        gallery.innerHTML = '<p>画像の読み込みに失敗しました。</p>';
+        gallery.innerHTML = '<p>画像の読み込みに失敗しました。考えられる原因：データベースのインデックスが未設定です。</p>';
     }
 }
 
