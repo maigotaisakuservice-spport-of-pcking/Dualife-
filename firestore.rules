@@ -1,11 +1,115 @@
-// WARNING: These rules are insecure and allow anyone to read and write to your database.
-// This is for development and testing purposes only.
-// For a production application, you must implement proper security rules.
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // Helper function to validate the data for a new "thought" post.
+    // It checks for the presence and basic type of required fields.
+    function isThoughtValid() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['text', 'localUserId', 'nickname', 'ipAddress', 'createdAt', 'expireAt', 'imageUrl'])
+          && data.text is string && data.text.size() > 0 && data.text.size() < 300
+          && data.localUserId is string
+          && data.nickname is string
+          && data.ipAddress is string
+          && (data.imageUrl == null || data.imageUrl is string);
+    }
+
+    // Helper function to validate the data for a new group message.
+    function isGroupMessageValid() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['text', 'senderId', 'senderNickname', 'createdAt'])
+            && data.text is string && data.text.size() > 0 && data.text.size() < 500
+            && data.senderId is string
+            && data.senderNickname is string;
+    }
+
+    // Helper function to validate data for a new album image.
+    function isAlbumImageValid() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['imageUrl', 'uploaderId', 'uploaderNickname', 'createdAt'])
+            && data.imageUrl is string
+            && data.uploaderId is string
+            && data.uploaderNickname is string;
+    }
+
+
+    // Free Mode: "thoughts" collection
+    match /thoughts/{thoughtId} {
+      // Anyone can read posts on the public timeline.
+      allow read: if true;
+
+      // A user can create a post if the data is valid.
+      allow create: if isThoughtValid();
+
+      // A user can only update the 'reactions' map on a post.
+      // This prevents modification of the post's content or author.
+      // It also ensures no other fields are sneakily added.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+
+      // Deletion is disallowed from the client. Posts expire via TTL policy.
+      allow delete: if false;
+    }
+
+    // App Settings: Passcode document
+    match /app_settings/passcode {
+      // The client must be able to read the passcode to verify user input.
+      allow read: if true;
+
+      // The passcode must not be changed from the client-side for security reasons.
+      allow write: if false;
+    }
+
+    // Passcode document for the custom login
+    match /pass0102@passco024@decode/passcode {
+        allow read: if true;
+        allow write: if false;
+    }
+
+    // School Mode: "groups" collection and subcollections
+    match /groups/{groupId} {
+      // If a user knows the group ID, they can read the group's main document.
+      allow read: if true;
+
+      // A user can create a group if the required fields are present.
+      allow create: if request.resource.data.keys().hasAll(['createdBy', 'createdAt']);
+
+      // Deleting groups from the client is disabled to prevent accidental/malicious deletion.
+      // The app's design (owner sees a button) provides the primary guardrail.
+      // Proper security would require user authentication (request.auth).
+      allow delete: if false;
+
+      // Updating the group document itself is not an intended feature.
+      allow update: if false;
+
+      // Subcollection for Contact Book messages
+      match /messages/{messageId} {
+        allow read: if true;
+
+        // Allow creating a message if the data has the correct structure.
+        allow create: if isGroupMessageValid() && request.resource.data.keys().has('type');
+
+        // Only allow updates to the 'poll' field for attendance-type messages.
+        // This allows users to vote without changing the message content.
+        allow update: if resource.data.type == 'attendance'
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']);
+
+        allow delete: if false;
+      }
+
+      // Subcollection for Chat messages
+      match /chat/{chatId} {
+        allow read: if true;
+        allow create: if isGroupMessageValid();
+        allow update, delete: if false;
+      }
+
+      // Subcollection for Event Album images
+      match /album/{albumId} {
+        allow read: if true;
+        allow create: if isAlbumImageValid();
+        allow update, delete: if false;
+      }
     }
   }
 }

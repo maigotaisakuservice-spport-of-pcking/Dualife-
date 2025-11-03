@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Dualife</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Dualife</h1>
+    </header>
+
+    <main>
+        <div id="login-form">
+            <h2>パスコードを入力してください</h2>
+            <input type="password" id="passcode-input" placeholder="パスコード">
+            <button id="login-btn">認証</button>
+            <p id="error-message" style="color: red;"></p>
+        </div>
+    </main>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <script src="login.js"></script>
+</body>
+</html>
