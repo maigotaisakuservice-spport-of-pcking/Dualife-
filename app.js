@@ -514,60 +514,106 @@ async function showMemoPopup(postId) {
 
 async function showSchoolMode() {
     const mainContent = document.getElementById('main-content');
-    const freeModeBtn = document.getElementById('free-mode-btn');
-    const myRoomBtn = document.getElementById('my-room-btn');
-    const schoolModeBtn = document.getElementById('school-mode-btn');
-    const groupId = localStorage.getItem('groupId');
     const localUserId = localStorage.getItem('localUserId');
 
-    mainContent.innerHTML = `<h2>スクールモード</h2>`;
-    schoolModeBtn.classList.add('active');
-    freeModeBtn.classList.remove('active');
-    myRoomBtn.classList.remove('active');
+    // UIの基本的なアクティブ状態を設定
+    document.getElementById('school-mode-btn').classList.add('active');
+    document.getElementById('free-mode-btn').classList.remove('active');
+    document.getElementById('my-room-btn').classList.remove('active');
 
-    if (groupId) {
-        // グループ情報を取得して所有者かどうかを判断
-        const groupDoc = await db.collection('groups').doc(groupId).get();
+    mainContent.innerHTML = `<h2>スクールモード</h2>`;
+
+    const userGroups = JSON.parse(localStorage.getItem('userGroups')) || {};
+    const activeGroupId = localStorage.getItem('activeGroupId');
+
+    if (Object.keys(userGroups).length > 0) {
+        // グループセレクターのHTMLを生成
+        let groupSelectorHTML = '<select id="group-selector">';
+        for (const groupId in userGroups) {
+            groupSelectorHTML += `<option value="${groupId}" ${groupId === activeGroupId ? 'selected' : ''}>${userGroups[groupId].name}</option>`;
+        }
+        groupSelectorHTML += '</select>';
+
+        const groupDoc = await db.collection('groups').doc(activeGroupId).get();
         const groupData = groupDoc.exists ? groupDoc.data() : {};
         const isOwner = groupData.createdBy === localUserId;
 
         mainContent.innerHTML += `
+            <div class="group-header">
+                ${groupSelectorHTML}
+                <button id="add-more-group-btn">+ グループを追加/参加</button>
+            </div>
             <div class="school-mode-container">
                 <div class="school-mode-tabs">
                     <button id="contact-book-tab" class="active">連絡帳</button>
                     <button id="event-album-tab">イベントアルバム</button>
+                    <button id="attendance-check-tab">出欠確認</button>
                 </div>
                 <div id="school-mode-content"></div>
                 <p class="group-info">
-                    招待コード: ${groupId}
-                    <button id="leave-group-btn">グループを抜ける</button>
-                    ${isOwner ? '<button id="delete-group-btn" class="danger">グループを削除</button>' : ''}
+                    招待コード: ${activeGroupId}
+                    <button id="leave-group-btn">現在のグループを抜ける</button>
+                    ${isOwner ? '<button id="settings-btn">設定</button><button id="delete-group-btn" class="danger">グループを削除</button>' : ''}
                 </p>
             </div>
         `;
+
+        document.getElementById('group-selector').addEventListener('change', (e) => {
+            localStorage.setItem('activeGroupId', e.target.value);
+            showSchoolMode(); // 選択が変更されたらUIを再描画
+        });
+
+        document.getElementById('add-more-group-btn').addEventListener('click', () => {
+            // グループ参加・作成フォームをモーダルなどで表示する（今回は既存のフォームに切り替える簡易実装）
+             mainContent.innerHTML += `
+                <div id="group-join-form" class="popup-overlay" style="display: flex;">
+                    <div class="popup-content">
+                         <p>グループに参加するか、新しいグループを作成してください。</p>
+                        <input type="text" id="group-code-input" placeholder="招待コードを入力">
+                        <button id="join-group-btn">参加</button>
+                        <hr>
+                        <button id="create-group-btn">新しいグループを作成</button>
+                        <button onclick="this.parentElement.parentElement.style.display='none'">キャンセル</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('join-group-btn').addEventListener('click', joinGroup);
+            document.getElementById('create-group-btn').addEventListener('click', createGroup);
+        });
+
         document.getElementById('leave-group-btn').addEventListener('click', leaveGroup);
         if (isOwner) {
             document.getElementById('delete-group-btn').addEventListener('click', deleteGroup);
+            document.getElementById('settings-btn').addEventListener('click', showGroupSettings);
         }
 
         const contactBookTab = document.getElementById('contact-book-tab');
         const eventAlbumTab = document.getElementById('event-album-tab');
+        const attendanceCheckTab = document.getElementById('attendance-check-tab');
 
-        // グループ情報を渡して連絡帳を表示
-        showContactBook(groupData);
+        showContactBook(groupData); // 初期表示
 
         contactBookTab.addEventListener('click', () => {
             contactBookTab.classList.add('active');
             eventAlbumTab.classList.remove('active');
+            attendanceCheckTab.classList.remove('active');
             showContactBook(groupData);
         });
         eventAlbumTab.addEventListener('click', () => {
             eventAlbumTab.classList.add('active');
             contactBookTab.classList.remove('active');
+            attendanceCheckTab.classList.remove('active');
             showEventAlbum();
+        });
+        attendanceCheckTab.addEventListener('click', () => {
+            attendanceCheckTab.classList.add('active');
+            contactBookTab.classList.remove('active');
+            eventAlbumTab.classList.remove('active');
+            showAttendanceCheck();
         });
 
     } else {
+        // 参加グループがない場合
         mainContent.innerHTML += `
             <div id="group-join-form">
                 <p>グループに参加するか、新しいグループを作成してください。</p>
@@ -723,19 +769,27 @@ function renderPost(post, postId) {
     const text = post.text;
     const imageUrl = post.imageUrl;
     const reactions = post.reactions || {};
+    const localUserId = localStorage.getItem('localUserId');
 
     const timestamp = post.createdAt ? post.createdAt.toDate().toLocaleString('ja-JP') : '...';
 
     let imageHTML = '';
     if (imageUrl) {
-        // 画像がクリックされたときにopenImageModalを呼び出す
         imageHTML = `<img src="${imageUrl}" alt="投稿画像" class="post-image" onclick="openImageModal('${imageUrl}')">`;
     }
+
+    // 投稿者本人の場合にのみ削除ボタンを表示
+    const deleteButtonHTML = post.localUserId === localUserId
+        ? `<button class="delete-post-btn" onclick="deletePost('${postId}')">削除</button>`
+        : '';
 
     postDiv.innerHTML = `
         <div class="post-header">
             <strong>${nickname}</strong>
-            <span class="post-time">${timestamp}</span>
+            <div class="post-meta">
+                <span class="post-time">${timestamp}</span>
+                ${deleteButtonHTML}
+            </div>
         </div>
         <p class="post-text">${text}</p>
         ${imageHTML}
@@ -748,6 +802,23 @@ function renderPost(post, postId) {
     `;
 
     return postDiv;
+}
+
+/**
+ * フリーモードの投稿を削除する関数
+ * @param {string} postId FirestoreのドキュメントID
+ */
+function deletePost(postId) {
+    showCustomConfirm("この投稿を本当に削除しますか？", async () => {
+        try {
+            await db.collection('thoughts').doc(postId).delete();
+            showCustomAlert("投稿を削除しました。");
+            // タイムラインはリアルタイムで更新されるため、手動での再描画は不要
+        } catch (error) {
+            console.error("投稿の削除に失敗しました:", error);
+            showCustomAlert("投稿の削除に失敗しました。");
+        }
+    });
 }
 
 /**
@@ -774,16 +845,39 @@ function updateStampCount(postId, stampType) {
  * 新しいグループを作成する関数
  */
 async function createGroup() {
+    const groupName = prompt("新しいグループの名前を入力してください：");
+    if (!groupName) return;
+
+    const creatorInGroupName = prompt("このグループで使うあなたの名前を入力してください：");
+    if (!creatorInGroupName) return;
+
     const newGroupId = `dual-${Math.random().toString(36).substring(2, 8)}`;
+    const localUserId = localStorage.getItem('localUserId');
 
     try {
-        await db.collection('groups').doc(newGroupId).set({
+        // グループ情報と、作成者のメンバー情報を同時に保存
+        const groupRef = db.collection('groups').doc(newGroupId);
+        await groupRef.set({
+            name: groupName,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: localStorage.getItem('localUserId')
+            createdBy: localUserId
         });
 
-        localStorage.setItem('groupId', newGroupId);
-        showCustomAlert(`グループを作成しました！\n招待コード: ${newGroupId}`);
+        // メンバー情報をサブコレクションに保存
+        await groupRef.collection('members').doc(localUserId).set({
+            inGroupName: creatorInGroupName,
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // 複数グループ管理のためにlocalStorageの構造を変更
+        let groups = JSON.parse(localStorage.getItem('userGroups')) || {};
+        groups[newGroupId] = { name: groupName, inGroupName: creatorInGroupName };
+        localStorage.setItem('userGroups', JSON.stringify(groups));
+
+        // 現在アクティブなグループとして設定
+        localStorage.setItem('activeGroupId', newGroupId);
+
+        showCustomAlert(`グループ「${groupName}」を作成しました！\n招待コード: ${newGroupId}`);
         showSchoolMode(); // UIを更新
     } catch (error) {
         console.error("グループの作成に失敗しました:", error);
@@ -797,7 +891,6 @@ async function createGroup() {
 async function joinGroup() {
     const input = document.getElementById('group-code-input');
     const groupId = input.value.trim();
-
     if (!groupId) {
         showCustomAlert("招待コードを入力してください。");
         return;
@@ -808,8 +901,22 @@ async function joinGroup() {
         const doc = await groupRef.get();
 
         if (doc.exists) {
-            localStorage.setItem('groupId', groupId);
-            showCustomAlert("グループに参加しました！");
+            const groupData = doc.data();
+            const inGroupName = prompt(`グループ「${groupData.name}」で使うあなたの名前を入力してください：`);
+            if (!inGroupName) return;
+
+            const localUserId = localStorage.getItem('localUserId');
+            await groupRef.collection('members').doc(localUserId).set({
+                inGroupName: inGroupName,
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            let groups = JSON.parse(localStorage.getItem('userGroups')) || {};
+            groups[groupId] = { name: groupData.name, inGroupName: inGroupName };
+            localStorage.setItem('userGroups', JSON.stringify(groups));
+            localStorage.setItem('activeGroupId', groupId);
+
+            showCustomAlert(`グループ「${groupData.name}」に参加しました！`);
             showSchoolMode(); // UIを更新
         } else {
             showCustomAlert("その招待コードを持つグループは存在しません。");
@@ -824,8 +931,27 @@ async function joinGroup() {
  * 現在参加しているグループから脱退する関数
  */
 function leaveGroup() {
-    showCustomConfirm("本当にグループを抜けますか？", () => {
-        localStorage.removeItem('groupId');
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    if (!activeGroupId) return;
+
+    showCustomConfirm("本当に現在のグループを抜けますか？", async () => {
+        // DBから自分のメンバー情報を削除
+        const localUserId = localStorage.getItem('localUserId');
+        await db.collection('groups').doc(activeGroupId).collection('members').doc(localUserId).delete();
+
+        // localStorageから該当グループ情報を削除
+        let groups = JSON.parse(localStorage.getItem('userGroups')) || {};
+        delete groups[activeGroupId];
+        localStorage.setItem('userGroups', JSON.stringify(groups));
+
+        // アクティブなグループIDを更新（残っているグループの最初のもの or null）
+        const remainingGroupIds = Object.keys(groups);
+        if (remainingGroupIds.length > 0) {
+            localStorage.setItem('activeGroupId', remainingGroupIds[0]);
+        } else {
+            localStorage.removeItem('activeGroupId');
+        }
+
         showCustomAlert("グループを抜けました。");
         showSchoolMode(); // UIを更新
     });
@@ -835,18 +961,27 @@ function leaveGroup() {
  * グループを削除する関数（所有者のみ）
  */
 async function deleteGroup() {
-    const groupId = localStorage.getItem('groupId');
-    if (!groupId) return;
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    if (!activeGroupId) return;
 
-    showCustomConfirm("本当にこのグループを削除しますか？\n連絡帳やアルバムのデータもすべて失われ、元に戻すことはできません。", async () => {
+    showCustomConfirm("本当にこのグループを削除しますか？\nこのグループに関するすべてのデータが失われます。", async () => {
         try {
-            // Firestoreからグループドキュメントを削除
-            await db.collection('groups').doc(groupId).delete();
+            // Firestoreからグループドキュメントを削除（サブコレクションも削除推奨だが、今回は簡易的に本体のみ）
+            await db.collection('groups').doc(activeGroupId).delete();
 
-            // ※注：サブコレクション(messages, album)は自動では削除されないが、
-            // グループ本体がなくなるため、実質的にアクセス不能になる。
+            // localStorageから該当グループ情報を削除
+            let groups = JSON.parse(localStorage.getItem('userGroups')) || {};
+            delete groups[activeGroupId];
+            localStorage.setItem('userGroups', JSON.stringify(groups));
 
-            localStorage.removeItem('groupId');
+            // アクティブなグループIDを更新
+            const remainingGroupIds = Object.keys(groups);
+            if (remainingGroupIds.length > 0) {
+                localStorage.setItem('activeGroupId', remainingGroupIds[0]);
+            } else {
+                localStorage.removeItem('activeGroupId');
+            }
+
             showCustomAlert("グループを削除しました。");
             showSchoolMode(); // UIを更新
         } catch (error) {
@@ -859,21 +994,23 @@ async function deleteGroup() {
 /**
  * スクールモードの連絡帳UIを表示・制御する関数
  */
-function showContactBook(groupData) { // groupDataを受け取る
+function showContactBook(groupData) {
     const contentArea = document.getElementById('school-mode-content');
     contentArea.innerHTML = `
         <h3>連絡帳</h3>
         <div id="contact-post-form">
             <textarea id="contact-text" placeholder="メッセージを入力..." rows="3"></textarea>
-            <label><input type="radio" name="message-type" value="important" checked> 大事な連絡</label>
-            <label><input type="radio" name="message-type" value="chat"> 雑談</label>
+            <div class="message-type-options">
+                <label><input type="radio" name="message-type" value="important" checked> 大事な連絡</label>
+                <label><input type="radio" name="message-type" value="emergency"> 緊急</label>
+            </div>
             <button id="submit-contact-btn">送信</button>
         </div>
         <div id="contact-timeline"></div>
     `;
 
     document.getElementById('submit-contact-btn').addEventListener('click', submitContactMessage);
-    listenForContactMessages(groupData); // groupDataを渡す
+    listenForContactMessages(groupData);
 }
 
 /**
@@ -882,15 +1019,18 @@ function showContactBook(groupData) { // groupDataを受け取る
 async function submitContactMessage() {
     const text = document.getElementById('contact-text').value.trim();
     const type = document.querySelector('input[name="message-type"]:checked').value;
-    const groupId = localStorage.getItem('groupId');
-    if (!text || !groupId) return;
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const userGroups = JSON.parse(localStorage.getItem('userGroups')) || {};
+    const senderInGroupName = userGroups[activeGroupId]?.inGroupName || localStorage.getItem('nickname');
+
+    if (!text || !activeGroupId) return;
 
     try {
-        await db.collection('groups').doc(groupId).collection('messages').add({
+        await db.collection('groups').doc(activeGroupId).collection('messages').add({
             text: text,
             type: type,
             senderId: localStorage.getItem('localUserId'),
-            senderNickname: localStorage.getItem('nickname'),
+            senderInGroupName: senderInGroupName, // グループごとの名前を保存
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         document.getElementById('contact-text').value = '';
@@ -903,29 +1043,62 @@ async function submitContactMessage() {
 /**
  * 連絡帳のメッセージをリアルタイムで監視・表示する関数
  */
-function listenForContactMessages(groupData) { // groupDataを受け取る
+async function listenForContactMessages(groupData) {
     const timeline = document.getElementById('contact-timeline');
-    const groupId = localStorage.getItem('groupId');
-    const groupOwnerId = groupData.createdBy; // グループ作成者のIDを取得
-    if (!timeline || !groupId) return;
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const groupOwnerId = groupData.createdBy;
+    const localUserId = localStorage.getItem('localUserId');
+    if (!timeline || !activeGroupId) return;
 
-    db.collection('groups').doc(groupId).collection('messages').orderBy('createdAt', 'desc')
+    // 先にメンバー情報をすべて取得してMapに格納
+    const membersMap = new Map();
+    const membersSnapshot = await db.collection('groups').doc(activeGroupId).collection('members').get();
+    membersSnapshot.forEach(doc => {
+        membersMap.set(doc.id, doc.data().inGroupName);
+    });
+
+    db.collection('groups').doc(activeGroupId).collection('messages').orderBy('createdAt', 'desc')
         .onSnapshot(snapshot => {
             timeline.innerHTML = '';
             snapshot.forEach(doc => {
                 const message = doc.data();
-                const isOwner = message.senderId === groupOwnerId; // 送信者が作成者か判定
-                const crownIcon = isOwner ? '👑' : ''; // 作成者なら王冠アイコンを表示
+                const messageId = doc.id;
+                const senderName = membersMap.get(message.senderId) || '不明なメンバー';
+                const isOwner = message.senderId === groupOwnerId;
+                const crownIcon = isOwner ? '👑' : '';
 
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `message-item ${message.type}`; // 'important' or 'chat'
+                messageDiv.className = `message-item ${message.type}`;
+
+                const deleteButtonHTML = message.senderId === localUserId
+                    ? `<button class="delete-post-btn" onclick="deleteContactMessage('${messageId}')">削除</button>`
+                    : '';
+
                 messageDiv.innerHTML = `
-                    <p><strong>${crownIcon}${message.senderNickname || 'ななしさん'}</strong></p>
+                    <div class="message-header">
+                        <p><strong>${crownIcon}${senderName}</strong></p>
+                        ${deleteButtonHTML}
+                    </div>
                     <p>${message.text}</p>
                 `;
                 timeline.appendChild(messageDiv);
             });
         });
+}
+
+function deleteContactMessage(messageId) {
+    const groupId = localStorage.getItem('groupId');
+    if (!groupId) return;
+
+    showCustomConfirm("この連絡を本当に削除しますか？", async () => {
+        try {
+            await db.collection('groups').doc(groupId).collection('messages').doc(messageId).delete();
+            showCustomAlert("連絡を削除しました。");
+        } catch (error) {
+            console.error("連絡の削除に失敗しました:", error);
+            showCustomAlert("連絡の削除に失敗しました。");
+        }
+    });
 }
 
 
@@ -950,15 +1123,18 @@ function showEventAlbum() {
  */
 async function uploadAlbumImage(e) {
     const file = e.target.files[0];
-    const groupId = localStorage.getItem('groupId');
-    if (!file || !groupId) return;
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const userGroups = JSON.parse(localStorage.getItem('userGroups')) || {};
+    const uploaderInGroupName = userGroups[activeGroupId]?.inGroupName || localStorage.getItem('nickname');
+
+    if (!file || !activeGroupId) return;
 
     try {
         const imageUrl = await uploadToCloudinary(file);
-        await db.collection('groups').doc(groupId).collection('album').add({
+        await db.collection('groups').doc(activeGroupId).collection('album').add({
             imageUrl: imageUrl,
             uploaderId: localStorage.getItem('localUserId'),
-            uploaderNickname: localStorage.getItem('nickname'),
+            uploaderInGroupName: uploaderInGroupName, // グループごとの名前を保存
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     } catch (error) {
@@ -973,6 +1149,7 @@ async function uploadAlbumImage(e) {
 function listenForAlbumImages() {
     const gallery = document.getElementById('album-gallery');
     const groupId = localStorage.getItem('groupId');
+    const localUserId = localStorage.getItem('localUserId');
     if (!gallery || !groupId) return;
 
     db.collection('groups').doc(groupId).collection('album').orderBy('createdAt', 'desc')
@@ -980,12 +1157,247 @@ function listenForAlbumImages() {
             gallery.innerHTML = '';
             snapshot.forEach(doc => {
                 const imageData = doc.data();
+                const imageId = doc.id;
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'gallery-item';
+
                 const img = document.createElement('img');
                 img.src = imageData.imageUrl;
                 img.alt = 'アルバム画像';
-                gallery.appendChild(img);
+                img.onclick = () => openImageModal(imageData.imageUrl);
+
+                itemDiv.appendChild(img);
+
+                if (imageData.uploaderId === localUserId) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = '削除';
+                    deleteBtn.className = 'delete-album-btn';
+                    deleteBtn.onclick = () => deleteAlbumImage(imageId);
+                    itemDiv.appendChild(deleteBtn);
+                }
+
+                gallery.appendChild(itemDiv);
             });
         });
+}
+
+function deleteAlbumImage(imageId) {
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    if (!activeGroupId) return;
+
+    showCustomConfirm("この画像をアルバムから本当に削除しますか？", async () => {
+        try {
+            await db.collection('groups').doc(activeGroupId).collection('album').doc(imageId).delete();
+            showCustomAlert("画像を削除しました。");
+        } catch (error) {
+            console.error("アルバム画像の削除に失敗しました:", error);
+            showCustomAlert("画像の削除に失敗しました。");
+        }
+    });
+}
+
+// 8. 出欠確認機能
+// =============================================
+
+async function showAttendanceCheck() {
+    const contentArea = document.getElementById('school-mode-content');
+    // First, set a loading state synchronously
+    contentArea.innerHTML = `<h3>出欠確認</h3><p>読み込み中...</p>`;
+
+    // Perform async operations
+    try {
+        const localUserId = localStorage.getItem('localUserId');
+        const activeGroupId = localStorage.getItem('activeGroupId');
+        const groupDoc = await db.collection('groups').doc(activeGroupId).get();
+        if (!groupDoc.exists) {
+            contentArea.innerHTML = `<h3>出欠確認</h3><p>グループ情報が見つかりません。</p>`;
+            return;
+        }
+        const groupData = groupDoc.data();
+        const permissions = groupData.permissions || {};
+
+        const isOwner = groupData.createdBy === localUserId;
+        const canCreate = permissions[localUserId] && permissions[localUserId].canCreateAttendance;
+
+        let formHTML = '';
+        if (isOwner || canCreate) {
+            formHTML = `
+                <div id="create-attendance-form">
+                    <input type="text" id="attendance-title" placeholder="イベント名">
+                    <button id="create-attendance-btn">新しい出欠確認を作成</button>
+                </div>
+                <hr>
+            `;
+        }
+
+        // Now, update the content with the final HTML
+        contentArea.innerHTML = `
+            <h3>出欠確認</h3>
+            ${formHTML}
+            <div id="attendance-check-list"></div>
+        `;
+
+        if (isOwner || canCreate) {
+            document.getElementById('create-attendance-btn').addEventListener('click', createAttendanceCheck);
+        }
+
+        listenForAttendanceChecks();
+    } catch (error) {
+        console.error("出欠確認タブの表示エラー:", error);
+        contentArea.innerHTML = `<h3>出欠確認</h3><p>表示に失敗しました。</p>`;
+    }
+}
+
+async function createAttendanceCheck() {
+    const title = document.getElementById('attendance-title').value.trim();
+    if (!title) return;
+
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const localUserId = localStorage.getItem('localUserId');
+
+    try {
+        await db.collection('groups').doc(activeGroupId).collection('attendanceChecks').add({
+            title: title,
+            createdBy: localUserId,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            responses: {} // 回答を格納するオブジェクト
+        });
+        document.getElementById('attendance-title').value = '';
+    } catch (error) {
+        console.error("出欠確認の作成エラー:", error);
+    }
+}
+
+async function listenForAttendanceChecks() {
+    const listEl = document.getElementById('attendance-check-list');
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    if (!listEl || !activeGroupId) return;
+
+    db.collection('groups').doc(activeGroupId).collection('attendanceChecks').orderBy('createdAt', 'desc')
+        .onSnapshot(async snapshot => {
+            if (snapshot.empty) {
+                listEl.innerHTML = '<p>現在、出欠確認はありません。</p>';
+                return;
+            }
+
+            // 先にメンバー情報を取得
+            const membersMap = new Map();
+            const membersSnapshot = await db.collection('groups').doc(activeGroupId).collection('members').get();
+            membersSnapshot.forEach(doc => {
+                membersMap.set(doc.id, doc.data().inGroupName);
+            });
+
+            listEl.innerHTML = '';
+            for (const doc of snapshot.docs) {
+                const check = doc.data();
+                const checkId = doc.id;
+
+                const itemEl = document.createElement('div');
+                itemEl.className = 'attendance-item';
+
+                // 回答状況のHTMLを生成
+                let responsesHTML = '<ul>';
+                for (const userId in check.responses) {
+                    responsesHTML += `<li>${membersMap.get(userId) || '不明'}: ${check.responses[userId]}</li>`;
+                }
+                responsesHTML += '</ul>';
+
+                itemEl.innerHTML = `
+                    <h4>${check.title}</h4>
+                    <div class="attendance-controls">
+                        <button onclick="respondToAttendance('${checkId}', '出席')">出席</button>
+                        <button onclick="respondToAttendance('${checkId}', '欠席')">欠席</button>
+                        <button onclick="respondToAttendance('${checkId}', '未定')">未定</button>
+                    </div>
+                    <div class="attendance-responses">
+                        <h5>回答状況</h5>
+                        ${responsesHTML}
+                    </div>
+                `;
+                listEl.appendChild(itemEl);
+            }
+        });
+}
+
+async function respondToAttendance(checkId, response) {
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const localUserId = localStorage.getItem('localUserId');
+    if (!activeGroupId) return;
+
+    const responseField = `responses.${localUserId}`;
+    try {
+        await db.collection('groups').doc(activeGroupId).collection('attendanceChecks').doc(checkId).update({
+            [responseField]: response
+        });
+    } catch (error) {
+        console.error("出欠確認の回答エラー:", error);
+    }
+}
+
+// 9. グループ設定機能
+// =============================================
+
+async function showGroupSettings() {
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const groupDoc = await db.collection('groups').doc(activeGroupId).get();
+    const groupData = groupDoc.data();
+    const permissions = groupData.permissions || {};
+
+    const membersSnapshot = await db.collection('groups').doc(activeGroupId).collection('members').get();
+
+    let membersHTML = '<h4>メンバー権限管理</h4>';
+    membersSnapshot.forEach(doc => {
+        const memberId = doc.id;
+        const memberName = doc.data().inGroupName;
+        const canCreateAttendance = permissions[memberId] && permissions[memberId].canCreateAttendance;
+
+        membersHTML += `
+            <div>
+                <label>
+                    <input type-="checkbox" class="permission-checkbox" data-member-id="${memberId}" ${canCreateAttendance ? 'checked' : ''}>
+                    ${memberName}に出欠確認の作成を許可
+                </label>
+            </div>
+        `;
+    });
+
+    const popupContent = `
+        ${membersHTML}
+        <button id="save-permissions-btn">保存</button>
+        <button onclick="this.parentElement.parentElement.style.display='none'">閉じる</button>
+    `;
+
+    // 既存のポップアップを流用
+    const popup = document.getElementById('custom-popup');
+    popup.querySelector('.popup-content').innerHTML = popupContent;
+    popup.style.display = 'flex';
+
+    document.getElementById('save-permissions-btn').addEventListener('click', updatePermissions);
+}
+
+async function updatePermissions() {
+    const activeGroupId = localStorage.getItem('activeGroupId');
+    const checkboxes = document.querySelectorAll('.permission-checkbox');
+
+    const newPermissions = {};
+    checkboxes.forEach(cb => {
+        const memberId = cb.dataset.memberId;
+        newPermissions[memberId] = {
+            canCreateAttendance: cb.checked
+        };
+    });
+
+    try {
+        await db.collection('groups').doc(activeGroupId).update({
+            permissions: newPermissions
+        });
+        showCustomAlert("権限を更新しました。");
+        document.getElementById('custom-popup').style.display = 'none';
+    } catch (error) {
+        console.error("権限の更新エラー:", error);
+        showCustomAlert("権限の更新に失敗しました。");
+    }
 }
 
 // 7. 画像モーダル機能
