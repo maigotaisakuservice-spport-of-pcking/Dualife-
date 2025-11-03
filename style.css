@@ -1,0 +1,356 @@
+body {
+    margin: 0;
+    font-family: sans-serif;
+    background-color: #f0f2f5;
+    color: #333;
+}
+
+header {
+    background-color: #fff;
+    padding: 1rem;
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+}
+
+main {
+    padding: 1rem;
+    padding-bottom: 60px; /* タブバーの高さ分 */
+}
+
+footer {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8em;
+    color: #888;
+}
+
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background-color: #fff;
+    border-top: 1px solid #ddd;
+}
+
+.tab-bar button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+}
+
+.tab-bar button.active {
+    color: #007bff;
+    border-bottom: 2px solid #007bff;
+}
+
+/* ポップアップ用のスタイル */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-content {
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    text-align: center;
+    max-width: 80%;
+}
+
+.popup-content a {
+    display: block;
+    margin: 1rem 0;
+    color: #007bff;
+}
+
+.popup-content button {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    cursor: pointer;
+}
+
+#custom-popup-buttons {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+#custom-popup-confirm {
+    background-color: #d9534f;
+    color: white;
+}
+
+/* 投稿フォームのスタイル */
+#post-form {
+    background-color: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+#post-form textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 1rem;
+    resize: vertical;
+}
+
+#post-form input[type="file"] {
+    margin: 0.5rem 0;
+}
+
+#post-form button {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 20px;
+    font-size: 1rem;
+    cursor: pointer;
+    float: right;
+}
+
+/* タイムラインのスタイル */
+#timeline {
+    margin-top: 1rem;
+}
+
+.post {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.post-time {
+    font-size: 0.8em;
+    color: #888;
+}
+
+.post-text {
+    white-space: pre-wrap; /* 改行をそのまま表示 */
+    word-wrap: break-word; /* 長い単語を折り返す */
+}
+
+.post-image {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+/* 投稿フッター（スタンプ）のスタイル */
+.post-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 1rem;
+}
+
+.post-footer button {
+    background-color: #e4e6eb;
+    border: none;
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.post-footer span {
+    font-weight: bold;
+}
+
+/* ギャラリーのグリッドスタイル */
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 5px;
+}
+
+.gallery-grid img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+/* スクールモード（グループ参加フォーム）のスタイル */
+#group-join-form {
+    background-color: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+#group-join-form input[type="text"] {
+    width: 80%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+#group-join-form button {
+    width: 85%;
+    padding: 0.75rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+}
+
+#group-join-form hr {
+    margin: 1.5rem 0;
+    border: 0;
+    border-top: 1px solid #eee;
+}
+
+/* スクールモード（参加済み）のスタイル */
+.school-mode-container {
+    background-color: #fff;
+    padding: 0;
+    border-radius: 8px;
+}
+
+.school-mode-tabs {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+}
+
+.school-mode-tabs button {
+    flex: 1;
+    padding: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #888;
+}
+
+.school-mode-tabs button.active {
+    color: #007bff;
+    border-bottom: 2px solid #007bff;
+}
+
+#school-mode-content {
+    padding: 1rem;
+}
+
+.group-info {
+    font-size: 0.8em;
+    color: #888;
+    text-align: center;
+    padding: 1rem;
+    border-top: 1px solid #eee;
+}
+
+.group-info button {
+    background: #eee;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.group-info button.danger {
+    background-color: #d9534f;
+    color: white;
+    border-color: #d43f3a;
+}
+
+.warning-text {
+    color: #d9534f;
+    font-size: 0.8em;
+    padding: 0 1rem;
+}
+
+/* 連絡帳のスタイル */
+#contact-post-form {
+    margin-bottom: 1rem;
+}
+
+#contact-post-form textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+#contact-post-form button {
+    display: block;
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+.message-item {
+    border: 1px solid #eee;
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+.message-item.important {
+    background-color: #fffbe6;
+    border-left: 4px solid #ffc107;
+}
+
+
+.post-image {
+    max-width: 350px;
+    max-height: 300px;
+    cursor: pointer;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+/* Image Modal Styles */
+.image-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: none; /* Initially hidden */
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.image-modal-content {
+    max-width: 90vw;
+    max-height: 90vh;
+}
