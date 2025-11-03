@@ -85,6 +85,18 @@ footer {
     cursor: pointer;
 }
 
+#custom-popup-buttons {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+#custom-popup-confirm {
+    background-color: #d9534f;
+    color: white;
+}
+
 /* 投稿フォームのスタイル */
 #post-form {
     background-color: #fff;

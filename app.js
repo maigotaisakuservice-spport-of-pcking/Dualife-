@@ -108,6 +108,56 @@ getIpAddress();
 // =============================================
 
 /**
+ * カスタムアラートを表示する関数
+ * @param {string} message 表示するメッセージ
+ */
+function showCustomAlert(message) {
+    const popup = document.getElementById('custom-popup');
+    const messageEl = document.getElementById('custom-popup-message');
+    const okBtn = document.getElementById('custom-popup-ok');
+    const confirmBtn = document.getElementById('custom-popup-confirm');
+    const cancelBtn = document.getElementById('custom-popup-cancel');
+
+    messageEl.textContent = message;
+
+    okBtn.style.display = 'inline-block';
+    confirmBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
+
+    popup.style.display = 'flex';
+
+    okBtn.onclick = () => popup.style.display = 'none';
+}
+
+/**
+ * カスタム確認ダイアログを表示する関数
+ * @param {string} message 表示するメッセージ
+ * @param {function} onConfirm 「はい」がクリックされたときに実行されるコールバック
+ */
+function showCustomConfirm(message, onConfirm) {
+    const popup = document.getElementById('custom-popup');
+    const messageEl = document.getElementById('custom-popup-message');
+    const okBtn = document.getElementById('custom-popup-ok');
+    const confirmBtn = document.getElementById('custom-popup-confirm');
+    const cancelBtn = document.getElementById('custom-popup-cancel');
+
+    messageEl.textContent = message;
+
+    okBtn.style.display = 'none';
+    confirmBtn.style.display = 'inline-block';
+    cancelBtn.style.display = 'inline-block';
+
+    popup.style.display = 'flex';
+
+    confirmBtn.onclick = () => {
+        popup.style.display = 'none';
+        onConfirm();
+    };
+    cancelBtn.onclick = () => popup.style.display = 'none';
+}
+
+
+/**
  * 利用規約同意ポップアップを初期化する関数
  */
 function initializeTermsPopup() {
@@ -129,7 +179,6 @@ function initializeTermsPopup() {
  * モード切替機能を初期化する関数
  */
 function initializeModeSwitcher() {
-    const mainContent = document.getElementById('main-content');
     const freeModeBtn = document.getElementById('free-mode-btn');
     const myRoomBtn = document.getElementById('my-room-btn');
     const schoolModeBtn = document.getElementById('school-mode-btn');
@@ -140,124 +189,136 @@ function initializeModeSwitcher() {
     freeModeBtn.addEventListener('click', showFreeMode);
     myRoomBtn.addEventListener('click', showMyRoom);
     schoolModeBtn.addEventListener('click', showSchoolMode);
+}
 
-    function showFreeMode() {
-        mainContent.innerHTML = `
-            <h2>フリーモード</h2>
-            <div id="post-form">
-                <textarea id="post-text" placeholder="いまどうしてる？" rows="4"></textarea>
-                <input type="file" id="post-image" accept="image/*">
-                <button id="submit-post-btn">投稿する</button>
-            </div>
-            <div id="timeline">
-                <!-- タイムラインはここに表示される -->
-            </div>
-        `;
-        freeModeBtn.classList.add('active');
-        myRoomBtn.classList.remove('active');
-        schoolModeBtn.classList.remove('active');
+// 4.1. 画面表示関数 (グローバルスコープに移動)
+// =============================================
 
-        // 投稿ボタンにイベントリスナーを追加
-        document.getElementById('submit-post-btn').addEventListener('click', submitPost);
+function showFreeMode() {
+    const mainContent = document.getElementById('main-content');
+    const freeModeBtn = document.getElementById('free-mode-btn');
+    const myRoomBtn = document.getElementById('my-room-btn');
+    const schoolModeBtn = document.getElementById('school-mode-btn');
 
-        // タイムラインのリアルタイム監視を開始
-        listenForPosts();
-    }
+    mainContent.innerHTML = `
+        <h2>フリーモード</h2>
+        <div id="post-form">
+            <textarea id="post-text" placeholder="いまどうしてる？" rows="4"></textarea>
+            <input type="file" id="post-image" accept="image/*">
+            <button id="submit-post-btn">投稿する</button>
+        </div>
+        <div id="timeline">
+            <!-- タイムラインはここに表示される -->
+        </div>
+    `;
+    freeModeBtn.classList.add('active');
+    myRoomBtn.classList.remove('active');
+    schoolModeBtn.classList.remove('active');
 
-    async function showMyRoom() {
-        const localUserId = localStorage.getItem('localUserId');
-        mainContent.innerHTML = `
-            <h2>推し活マイルーム</h2>
-            <div id="my-room-gallery" class="gallery-grid"></div>
-        `;
-        myRoomBtn.classList.add('active');
-        freeModeBtn.classList.remove('active');
-        schoolModeBtn.classList.remove('active');
+    // 投稿ボタンにイベントリスナーを追加
+    document.getElementById('submit-post-btn').addEventListener('click', submitPost);
 
-        const gallery = document.getElementById('my-room-gallery');
-        gallery.innerHTML = '<p>読み込み中...</p>';
+    // タイムラインのリアルタイム監視を開始
+    listenForPosts();
+}
 
-        try {
-            const snapshot = await db.collection('thoughts')
-                .where('localUserId', '==', localUserId)
-                .where('imageUrl', '!=', null)
-                .orderBy('imageUrl') // imageUrlの存在をチェックするためのorderBy
-                .orderBy('createdAt', 'desc') // 作成日で並べ替え
-                .get();
+async function showMyRoom() {
+    const mainContent = document.getElementById('main-content');
+    const freeModeBtn = document.getElementById('free-mode-btn');
+    const myRoomBtn = document.getElementById('my-room-btn');
+    const schoolModeBtn = document.getElementById('school-mode-btn');
+    const localUserId = localStorage.getItem('localUserId');
 
-            gallery.innerHTML = '';
-            if (snapshot.empty) {
-                gallery.innerHTML = '<p>まだ画像が投稿されていません。</p>';
-                return;
-            }
-            snapshot.forEach(doc => {
-                const post = doc.data();
-                const img = document.createElement('img');
-                img.src = post.imageUrl;
-                img.alt = '投稿画像';
-                gallery.appendChild(img);
-            });
-        } catch (error) {
-            console.error("マイルームの画像取得エラー:", error);
-            gallery.innerHTML = '<p>画像の読み込みに失敗しました。</p>';
+    mainContent.innerHTML = `
+        <h2>推し活マイルーム</h2>
+        <div id="my-room-gallery" class="gallery-grid"></div>
+    `;
+    myRoomBtn.classList.add('active');
+    freeModeBtn.classList.remove('active');
+    schoolModeBtn.classList.remove('active');
+
+    const gallery = document.getElementById('my-room-gallery');
+    gallery.innerHTML = '<p>読み込み中...</p>';
+
+    try {
+        const snapshot = await db.collection('thoughts')
+            .where('localUserId', '==', localUserId)
+            .where('imageUrl', '!=', null)
+            .orderBy('imageUrl')
+            .orderBy('createdAt', 'desc')
+            .get();
+
+        gallery.innerHTML = '';
+        if (snapshot.empty) {
+            gallery.innerHTML = '<p>まだ画像が投稿されていません。</p>';
+            return;
         }
+        snapshot.forEach(doc => {
+            const post = doc.data();
+            const img = document.createElement('img');
+            img.src = post.imageUrl;
+            img.alt = '投稿画像';
+            gallery.appendChild(img);
+        });
+    } catch (error) {
+        console.error("マイルームの画像取得エラー:", error);
+        gallery.innerHTML = '<p>画像の読み込みに失敗しました。</p>';
     }
+}
 
-    function showSchoolMode() {
-        const groupId = localStorage.getItem('groupId');
+function showSchoolMode() {
+    const mainContent = document.getElementById('main-content');
+    const freeModeBtn = document.getElementById('free-mode-btn');
+    const myRoomBtn = document.getElementById('my-room-btn');
+    const schoolModeBtn = document.getElementById('school-mode-btn');
+    const groupId = localStorage.getItem('groupId');
 
-        mainContent.innerHTML = `<h2>スクールモード</h2>`;
-        schoolModeBtn.classList.add('active');
-        freeModeBtn.classList.remove('active');
-        myRoomBtn.classList.remove('active');
+    mainContent.innerHTML = `<h2>スクールモード</h2>`;
+    schoolModeBtn.classList.add('active');
+    freeModeBtn.classList.remove('active');
+    myRoomBtn.classList.remove('active');
 
-        if (groupId) {
-            // グループ参加済みのUI
-            mainContent.innerHTML += `
-                <div class="school-mode-container">
-                    <div class="school-mode-tabs">
-                        <button id="contact-book-tab" class="active">連絡帳</button>
-                        <button id="event-album-tab">イベントアルバム</button>
-                    </div>
-                    <div id="school-mode-content">
-                        <!-- コンテンツはタブに応じてここに表示 -->
-                    </div>
-                    <p class="group-info">招待コード: ${groupId} <button id="leave-group-btn">グループを抜ける</button></p>
+    if (groupId) {
+        mainContent.innerHTML += `
+            <div class="school-mode-container">
+                <div class="school-mode-tabs">
+                    <button id="contact-book-tab" class="active">連絡帳</button>
+                    <button id="event-album-tab">イベントアルバム</button>
                 </div>
-            `;
-            document.getElementById('leave-group-btn').addEventListener('click', leaveGroup);
+                <div id="school-mode-content"></div>
+                <p class="group-info">招待コード: ${groupId} <button id="leave-group-btn">グループを抜ける</button></p>
+            </div>
+        `;
+        document.getElementById('leave-group-btn').addEventListener('click', leaveGroup);
 
-            const contactBookTab = document.getElementById('contact-book-tab');
-            const eventAlbumTab = document.getElementById('event-album-tab');
+        const contactBookTab = document.getElementById('contact-book-tab');
+        const eventAlbumTab = document.getElementById('event-album-tab');
 
-            // 初期表示は連絡帳
+        showContactBook();
+
+        contactBookTab.addEventListener('click', () => {
+            contactBookTab.classList.add('active');
+            eventAlbumTab.classList.remove('active');
             showContactBook();
+        });
+        eventAlbumTab.addEventListener('click', () => {
+            eventAlbumTab.classList.add('active');
+            contactBookTab.classList.remove('active');
+            showEventAlbum();
+        });
 
-            contactBookTab.addEventListener('click', () => {
-                contactBookTab.classList.add('active');
-                eventAlbumTab.classList.remove('active');
-                showContactBook();
-            });
-            eventAlbumTab.addEventListener('click', () => {
-                eventAlbumTab.classList.add('active');
-                contactBookTab.classList.remove('active');
-                showEventAlbum();
-            });
-
-        } else {
-            // グループ未参加のUI
-            mainContent.innerHTML += `
-                <div id="group-join-form">
-                    <p>グループに参加するか、新しいグループを作成してください。</p>
-                    <input type="text" id="group-code-input" placeholder="招待コードを入力">
-                    <button id="join-group-btn">参加</button>
-                    <hr>
-                    <button id="create-group-btn">新しいグループを作成</button>
-                </div>
-            `;
-            document.getElementById('join-group-btn').addEventListener('click', joinGroup);
-            document.getElementById('create-group-btn').addEventListener('click', createGroup);
-        }
+    } else {
+        mainContent.innerHTML += `
+            <div id="group-join-form">
+                <p>グループに参加するか、新しいグループを作成してください。</p>
+                <input type="text" id="group-code-input" placeholder="招待コードを入力">
+                <button id="join-group-btn">参加</button>
+                <hr>
+                <button id="create-group-btn">新しいグループを作成</button>
+            </div>
+        `;
+        document.getElementById('join-group-btn').addEventListener('click', joinGroup);
+        document.getElementById('create-group-btn').addEventListener('click', createGroup);
     }
 }
 
@@ -274,7 +335,7 @@ async function submitPost() {
     const text = postTextInput.value.trim();
 
     if (!text) {
-        alert('テキストを入力してください。');
+        showCustomAlert('テキストを入力してください。');
         return;
     }
 
@@ -286,7 +347,7 @@ async function submitPost() {
         // IPアドレスを取得
         const ipAddress = await getIpAddress();
         if (!ipAddress) {
-            alert('IPアドレスが取得できませんでした。投稿できません。');
+            showCustomAlert('IPアドレスが取得できませんでした。投稿できません。');
             return;
         }
 
@@ -315,11 +376,11 @@ async function submitPost() {
         postTextInput.value = '';
         postImageInput.value = '';
 
-        alert('投稿しました！');
+        showCustomAlert('投稿しました！');
 
     } catch (error) {
         console.error('投稿エラー:', error);
-        alert('投稿に失敗しました。');
+        showCustomAlert('投稿に失敗しました。');
     }
 }
 
@@ -440,11 +501,11 @@ async function createGroup() {
         });
 
         localStorage.setItem('groupId', newGroupId);
-        alert(`グループを作成しました！\n招待コード: ${newGroupId}`);
+        showCustomAlert(`グループを作成しました！\n招待コード: ${newGroupId}`);
         showSchoolMode(); // UIを更新
     } catch (error) {
         console.error("グループの作成に失敗しました:", error);
-        alert("グループの作成に失敗しました。");
+        showCustomAlert("グループの作成に失敗しました。");
     }
 }
 
@@ -456,7 +517,7 @@ async function joinGroup() {
     const groupId = input.value.trim();
 
     if (!groupId) {
-        alert("招待コードを入力してください。");
+        showCustomAlert("招待コードを入力してください。");
         return;
     }
 
@@ -466,14 +527,14 @@ async function joinGroup() {
 
         if (doc.exists) {
             localStorage.setItem('groupId', groupId);
-            alert("グループに参加しました！");
+            showCustomAlert("グループに参加しました！");
             showSchoolMode(); // UIを更新
         } else {
-            alert("その招待コードを持つグループは存在しません。");
+            showCustomAlert("その招待コードを持つグループは存在しません。");
         }
     } catch (error) {
         console.error("グループの参加に失敗しました:", error);
-        alert("グループへの参加に失敗しました。");
+        showCustomAlert("グループへの参加に失敗しました。");
     }
 }
 
@@ -481,11 +542,11 @@ async function joinGroup() {
  * 現在参加しているグループから脱退する関数
  */
 function leaveGroup() {
-    if (confirm("本当にグループを抜けますか？")) {
+    showCustomConfirm("本当にグループを抜けますか？", () => {
         localStorage.removeItem('groupId');
-        alert("グループを抜けました。");
+        showCustomAlert("グループを抜けました。");
         showSchoolMode(); // UIを更新
-    }
+    });
 }
 
 /**
@@ -528,7 +589,7 @@ async function submitContactMessage() {
         document.getElementById('contact-text').value = '';
     } catch (error) {
         console.error("連絡帳への投稿エラー:", error);
-        alert("メッセージの送信に失敗しました。");
+        showCustomAlert("メッセージの送信に失敗しました。");
     }
 }
 
@@ -591,7 +652,7 @@ async function uploadAlbumImage(e) {
         });
     } catch (error) {
         console.error("アルバムへの画像アップロードエラー:", error);
-        alert("画像のアップロードに失敗しました。");
+        showCustomAlert("画像のアップロードに失敗しました。");
     }
 }
 
