@@ -244,7 +244,6 @@ async function showMyRoom() {
         const snapshot = await db.collection('thoughts')
             .where('localUserId', '==', localUserId)
             .where('imageUrl', '!=', null)
-            .orderBy('imageUrl')
             .orderBy('createdAt', 'desc')
             .get();
 
@@ -409,19 +408,37 @@ function uploadToCloudinary(file) {
         formData.append('file', file);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
+        // 公式ドキュメントに基づき、Fetch APIを使用してアップロードを実行
         fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            // ネットワークエラーだけでなく、Cloudinaryからのエラーレスポンスも考慮
+            if (!response.ok) {
+                // response.json()を待ってからエラーをrejectする
+                return response.json().then(errorData => {
+                    throw new Error(errorData.error.message || 'Cloudinary APIエラー');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            // secure_urlが存在し、有効なURLであることを確認
             if (data.secure_url) {
+                console.log('Cloudinaryへのアップロード成功:', data.secure_url);
                 resolve(data.secure_url);
             } else {
-                reject(new Error('Cloudinaryへのアップロードに失敗しました。'));
+                // データは取得できたが、期待したURLが含まれていない場合
+                console.error('Cloudinaryからのレスポンスエラー:', data);
+                reject(new Error('アップロード後のURL取得に失敗しました。'));
             }
         })
-        .catch(error => reject(error));
+        .catch(error => {
+            // ネットワークエラーや上記でthrowされたエラーをキャッチ
+            console.error('Cloudinaryへのアップロード中にエラーが発生しました:', error);
+            reject(error); // エラーオブジェクトをそのまま次のcatchに渡す
+        });
     });
 }
 
