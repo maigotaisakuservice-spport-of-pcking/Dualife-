@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // グローバル変数
     let testUser = null;
+    
 
     // DOM要素
     const selectionScreen = document.getElementById('selection-screen');
