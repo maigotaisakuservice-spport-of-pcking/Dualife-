@@ -3,61 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dualife</title>
+    <title>高度セキュリティ認証システム</title>
     <link rel="stylesheet" href="style.css">
+    <!-- QRコード読み取りライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <!-- QRコード生成ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <!-- 顔認証ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 </head>
 <body>
-    <header>
-        <h1>Dualife</h1>
-    </header>
-
-    <main id="main-content">
-        <!-- コンテンツはここに動的に読み込まれる -->
-    </main>
-
-    <footer>
-        <p class="warning-text"><strong>注意:</strong> ブラウザの履歴やデータを消去すると、あなたのIDや参加グループの情報もすべて失われます。</p>
-        <p>© 2025 PDG Deployment<br>All rights reserved.</p>
-    </footer>
-
-    <nav class="tab-bar">
-        <button id="free-mode-btn">フリー</button>
-        <button id="my-room-btn">マイルーム</button>
-        <button id="school-mode-btn">スクール</button>
-    </nav>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-
-    <!-- Cloudinary SDK -->
-    <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
-
-    <script src="app.js"></script>
-
-    <!-- 利用規約同意ポップアップ -->
-    <div id="terms-popup" class="popup-overlay" style="display: none;">
-        <div class="popup-content">
-            <p>利用規約を必ずお読みください。<br>サービスの利用を開始した時点で、利用規約に同意したことと見なします。</p>
-            <a href="terms.html" target="_blank">利用規約ページへ</a>
-            <button id="close-popup-btn">閉じる</button>
+    <div id="auth-container">
+        <!-- 初期選択画面 -->
+        <div id="selection-screen" class="screen active">
+            <h1>認証方法を選択してください</h1>
+            <div class="auth-options">
+                <button class="auth-btn" data-layer="1">セキュリティレイヤー1<br>(QRコード認証)</button>
+                <button class="auth-btn" data-layer="2">セキュリティレイヤー2<br>(パスワード認証)</button>
+                <button class="auth-btn" data-layer="3">セキュリティレイヤー3<br>(多要素認証)</button>
+                <button class="auth-btn" data-layer="4">セキュリティレイヤー4<br>(顔・虹彩認証)</button>
+            </div>
         </div>
-    </div>
 
-    <!-- 汎用カスタムポップアップ -->
-    <div id="custom-popup" class="popup-overlay" style="display: none;">
-        <div class="popup-content">
-            <p id="custom-popup-message"></p>
-            <div id="custom-popup-buttons">
-                <button id="custom-popup-ok">OK</button>
-                <button id="custom-popup-confirm">はい</button>
-                <button id="custom-popup-cancel">いいえ</button>
+        <!-- 各認証画面 -->
+        <div id="auth-screens">
+            <!-- レイヤー1: QRコード認証 -->
+            <div id="layer-1-screen" class="screen">
+                <h2>QRコード認証</h2>
+                <div class="camera-container">
+                    <video id="qr-video" playsinline></video>
+                    <canvas id="qr-canvas"></canvas>
+                </div>
+                <div id="qr-no-camera" class="no-camera-fallback" style="display: none;">
+                    <p>カメラが利用できません。</p>
+                    <p>スマートフォンで以下のQRコードをスキャンして認証を続けてください。</p>
+                    <div id="fallback-qr-code"></div>
+                </div>
+                <button class="back-btn">戻る</button>
+            </div>
+
+            <!-- レイヤー2: パスワード認証 -->
+            <div id="layer-2-screen" class="screen">
+                <h2>パスワード認証</h2>
+                <input type="text" id="user-id" placeholder="ユーザーID">
+                <input type="password" id="user-pw" placeholder="パスワード">
+                <button id="login-btn">ログイン</button>
+                <p id="login-error" class="error-message"></p>
+                <button class="back-btn">戻る</button>
+            </div>
+
+            <!-- レイヤー3: 多要素認証 -->
+            <div id="layer-3-screen" class="screen">
+                <h2>多要素認証</h2>
+                <div id="mfa-step-1">
+                    <input type="text" id="mfa-user-id" placeholder="ユーザーID">
+                    <input type="password" id="mfa-user-pw" placeholder="パスワード">
+                    <button id="mfa-login-btn">次へ</button>
+                </div>
+                <div id="mfa-step-2" style="display: none;">
+                    <p>表示されたパターンを繋いでください</p>
+                    <div id="pattern-lock-container"></div>
+                </div>
+                <p id="mfa-error" class="error-message"></p>
+                <button class="back-btn">戻る</button>
+            </div>
+
+            <!-- レイヤー4: 顔・虹彩認証 -->
+            <div id="layer-4-screen" class="screen">
+                <h2>顔・虹彩認証</h2>
+                <div class="camera-container">
+                    <video id="face-video" playsinline></video>
+                    <canvas id="face-canvas"></canvas>
+                </div>
+                 <div id="face-no-camera" class="no-camera-fallback" style="display: none;">
+                    <p>カメラが利用できません。</p>
+                    <p>スマートフォンで以下のQRコードをスキャンして認証を続けてください。</p>
+                    <div id="fallback-qr-code-face"></div>
+                </div>
+                <p id="face-status"></p>
+                <button class="back-btn">戻る</button>
             </div>
         </div>
     </div>
-    <!-- Image Modal -->
-    <div id="image-modal" class="image-modal-overlay">
-        <img src="" alt="拡大画像" id="modal-image-content" class="image-modal-content">
-    </div>
+
+    <footer>
+        <p>© 2025 PDG Deployment</p>
+    </footer>
+
+    <script src="app.js"></script>
 </body>
 </html>

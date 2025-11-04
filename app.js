@@ -1,773 +1,389 @@
-// 1. 初期設定と変数定義
-// =============================================
-
-// WARNING: Do not expose your API keys in client-side code in a production environment.
-// These keys are provided for demonstration purposes only.
-// Consider using a backend service to manage authentication and API calls securely.
-// Firebase Configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyC0whVaW_DeLNhCnr9sRuxqMrTtEJSPchM",
-    authDomain: "dualife-pdg-group.firebaseapp.com",
-    projectId: "dualife-pdg-group",
-    storageBucket: "dualife-pdg-group.appspot.com",
-    messagingSenderId: "419383730263",
-    appId: "1:419383730263:web:e2fa87f1773f78be24c312"
-};
-
-// Firebaseの初期化
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// Cloudinary Configuration
-const CLOUDINARY_CLOUD_NAME = 'dwse8vdhp';
-const CLOUDINARY_UPLOAD_PRESET = 'dualife-post-image-upload';
-
-
-// 2. ユーザー識別と情報管理
-// =============================================
-
-// アプリケーションの初期化処理をDOMの読み込み完了後に行う
 document.addEventListener('DOMContentLoaded', () => {
-    initializeUser();
-    initializeTermsPopup();
-    initializeModeSwitcher();
-});
+    // グローバル変数
+    let testUser = null;
 
-/**
- * ユーザーIDとニックネームを初期化する関数
- * LocalStorageに情報がなければ新規作成し、保存する
- */
-function initializeUser() {
-    let localUserId = localStorage.getItem('localUserId');
-    let nickname = localStorage.getItem('nickname');
+    // DOM要素
+    const selectionScreen = document.getElementById('selection-screen');
+    const authScreens = document.getElementById('auth-screens');
+    const authButtons = document.querySelectorAll('.auth-btn');
+    const backButtons = document.querySelectorAll('.back-btn');
 
-    if (!localUserId) {
-        localUserId = generateUniqueId();
-        localStorage.setItem('localUserId', localUserId);
-        console.log('新規ユーザーIDを生成しました:', localUserId);
-    } else {
-        console.log('既存のユーザーID:', localUserId);
-    }
-
-    if (!nickname) {
-        nickname = generateRandomNickname();
-        localStorage.setItem('nickname', nickname);
-        console.log('新規ニックネームを生成しました:', nickname);
-    } else {
-        console.log('既存のニックネーム:', nickname);
-    }
-}
-
-/**
- * ユニークなIDを生成する簡単な関数
- * @returns {string} タイムスタンプと乱数を組み合わせた文字列
- */
-function generateUniqueId() {
-    return 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
-}
-
-/**
- * ランダムなニックネームを生成する関数
- * @returns {string} 形容詞 + 名詞 の組み合わせ
- */
-function generateRandomNickname() {
-    const adjectives = ['水色の', '眠い', 'きらきらの', '夢見る', 'ごきげんな', 'さみしい', '静かな', '朝焼けの'];
-    const nouns = ['ラムネ', 'ネコ', 'ドロップ', 'ココア', 'イルカ', 'オオカミ', '雨音', '海'];
-
-    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const noun = nouns[Math.floor(Math.random() * nouns.length)];
-
-    return `${adj}${noun}`;
-}
-
-
-// 3. 外部サービス連携
-// =============================================
-
-/**
- * 外部APIからユーザーのIPアドレスを取得する関数
- * @returns {Promise<string|null>} IPアドレス or 取得失敗時にnull
- */
-async function getIpAddress() {
-    try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        if (!response.ok) {
-            throw new Error('IPアドレスの取得に失敗しました。');
+    /**
+     * ユーザーデータを読み込み、デコードする
+     */
+    async function loadUserData() {
+        try {
+            const response = await fetch('userdata.txt');
+            if (!response.ok) {
+                throw new Error('ユーザーデータの読み込みに失敗しました。');
+            }
+            const base64Data = await response.text();
+            // Base64デコード (atob) して、JSONとしてパースする
+            testUser = JSON.parse(atob(base64Data));
+            console.log('テストユーザー情報を読み込みました:', testUser);
+        } catch (error) {
+            console.error(error);
+            alert('致命的なエラー: ユーザー情報が取得できません。');
         }
-        const data = await response.json();
-        console.log('IPアドレスを取得しました:', data.ip);
-        return data.ip;
-    } catch (error) {
-        console.error(error);
-        return null; // エラー時はnullを返す
-    }
-}
-
-// 動作テスト
-getIpAddress();
-
-
-// 4. UI制御
-// =============================================
-
-/**
- * カスタムアラートを表示する関数
- * @param {string} message 表示するメッセージ
- */
-function showCustomAlert(message) {
-    const popup = document.getElementById('custom-popup');
-    const messageEl = document.getElementById('custom-popup-message');
-    const okBtn = document.getElementById('custom-popup-ok');
-    const confirmBtn = document.getElementById('custom-popup-confirm');
-    const cancelBtn = document.getElementById('custom-popup-cancel');
-
-    messageEl.textContent = message;
-
-    okBtn.style.display = 'inline-block';
-    confirmBtn.style.display = 'none';
-    cancelBtn.style.display = 'none';
-
-    popup.style.display = 'flex';
-
-    okBtn.onclick = () => popup.style.display = 'none';
-}
-
-/**
- * カスタム確認ダイアログを表示する関数
- * @param {string} message 表示するメッセージ
- * @param {function} onConfirm 「はい」がクリックされたときに実行されるコールバック
- */
-function showCustomConfirm(message, onConfirm) {
-    const popup = document.getElementById('custom-popup');
-    const messageEl = document.getElementById('custom-popup-message');
-    const okBtn = document.getElementById('custom-popup-ok');
-    const confirmBtn = document.getElementById('custom-popup-confirm');
-    const cancelBtn = document.getElementById('custom-popup-cancel');
-
-    messageEl.textContent = message;
-
-    okBtn.style.display = 'none';
-    confirmBtn.style.display = 'inline-block';
-    cancelBtn.style.display = 'inline-block';
-
-    popup.style.display = 'flex';
-
-    confirmBtn.onclick = () => {
-        popup.style.display = 'none';
-        onConfirm();
-    };
-    cancelBtn.onclick = () => popup.style.display = 'none';
-}
-
-
-/**
- * 利用規約同意ポップアップを初期化する関数
- */
-function initializeTermsPopup() {
-    const popup = document.getElementById('terms-popup');
-    const closeBtn = document.getElementById('close-popup-btn');
-    const termsAccepted = localStorage.getItem('termsAccepted');
-
-    if (!termsAccepted) {
-        popup.style.display = 'flex';
     }
 
-    closeBtn.addEventListener('click', () => {
-        popup.style.display = 'none';
-        localStorage.setItem('termsAccepted', 'true');
+    /**
+     * 指定された画面に切り替える
+     * @param {string | null} screenId 表示する画面のID。nullの場合は選択画面を表示
+     */
+    function switchScreen(screenId) {
+        // 全てのスクリーンを非表示に
+        selectionScreen.classList.remove('active');
+        document.querySelectorAll('.screen').forEach(screen => {
+            if (screen.id !== 'selection-screen') { // selection-screen自体はauth-screensの外にあるので個別対応
+                 screen.classList.remove('active');
+            }
+        });
+
+        if (screenId) {
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+            }
+        } else {
+            selectionScreen.classList.add('active');
+        }
+    }
+
+    /**
+     * 認証成功時の処理
+     */
+    function authenticationSuccess() {
+        console.log('認証に成功しました。');
+        // TODO: 遷移先のページはここで変更可能です
+        window.location.href = 'maindata.html';
+    }
+
+    // --- イベントリスナー ---
+
+    // グローバル変数 (カメラストリーム管理用)
+    let currentStream = null;
+
+    // 認証方法選択ボタン
+    authButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const layer = button.dataset.layer;
+            switchScreen(`layer-${layer}-screen`);
+            // 各レイヤーの初期化処理
+            if (layer === '1') {
+                initializeLayer1();
+            } else if (layer === '2') {
+                initializeLayer2();
+            } else if (layer === '3') {
+                initializeLayer3();
+            } else if (layer === '4') {
+                initializeLayer4();
+            }
+        });
     });
-}
 
-/**
- * モード切替機能を初期化する関数
- */
-function initializeModeSwitcher() {
-    const freeModeBtn = document.getElementById('free-mode-btn');
-    const myRoomBtn = document.getElementById('my-room-btn');
-    const schoolModeBtn = document.getElementById('school-mode-btn');
-
-    // 初期表示はフリーモード
-    showFreeMode();
-
-    freeModeBtn.addEventListener('click', showFreeMode);
-    myRoomBtn.addEventListener('click', showMyRoom);
-    schoolModeBtn.addEventListener('click', showSchoolMode);
-}
-
-// 4.1. 画面表示関数 (グローバルスコープに移動)
-// =============================================
-
-function showFreeMode() {
-    const mainContent = document.getElementById('main-content');
-    const freeModeBtn = document.getElementById('free-mode-btn');
-    const myRoomBtn = document.getElementById('my-room-btn');
-    const schoolModeBtn = document.getElementById('school-mode-btn');
-
-    mainContent.innerHTML = `
-        <h2>フリーモード</h2>
-        <div id="post-form">
-            <textarea id="post-text" placeholder="いまどうしてる？" rows="4"></textarea>
-            <input type="file" id="post-image" accept="image/*">
-            <button id="submit-post-btn">投稿する</button>
-        </div>
-        <div id="timeline">
-            <!-- タイムラインはここに表示される -->
-        </div>
-    `;
-    freeModeBtn.classList.add('active');
-    myRoomBtn.classList.remove('active');
-    schoolModeBtn.classList.remove('active');
-
-    // 投稿ボタンにイベントリスナーを追加
-    document.getElementById('submit-post-btn').addEventListener('click', submitPost);
-
-    // タイムラインのリアルタイム監視を開始
-    listenForPosts();
-}
-
-async function showMyRoom() {
-    const mainContent = document.getElementById('main-content');
-    const freeModeBtn = document.getElementById('free-mode-btn');
-    const myRoomBtn = document.getElementById('my-room-btn');
-    const schoolModeBtn = document.getElementById('school-mode-btn');
-    const localUserId = localStorage.getItem('localUserId');
-
-    mainContent.innerHTML = `
-        <h2>推し活マイルーム</h2>
-        <div id="my-room-gallery" class="gallery-grid"></div>
-    `;
-    myRoomBtn.classList.add('active');
-    freeModeBtn.classList.remove('active');
-    schoolModeBtn.classList.remove('active');
-
-    const gallery = document.getElementById('my-room-gallery');
-    gallery.innerHTML = '<p>読み込み中...</p>';
-
-    try {
-        // NOTE: This query requires a composite index in Firestore.
-        // If this feature fails, create an index on:
-        // Collection: 'thoughts', Fields: 'localUserId' (asc), 'imageUrl' (!= null), 'createdAt' (desc)
-        const snapshot = await db.collection('thoughts')
-            .where('localUserId', '==', localUserId)
-            .where('imageUrl', '!=', null)
-            .orderBy('createdAt', 'desc')
-            .get();
-
-        gallery.innerHTML = '';
-        if (snapshot.empty) {
-            gallery.innerHTML = '<p>まだ画像が投稿されていません。</p>';
-            return;
-        }
-        snapshot.forEach(doc => {
-            const post = doc.data();
-            const img = document.createElement('img');
-            img.src = post.imageUrl;
-            img.alt = '投稿画像';
-            gallery.appendChild(img);
+    // 戻るボタン
+    backButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            switchScreen(null);
+            // カメラを使っているレイヤーの場合、ストリームを停止する
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
         });
-    } catch (error) {
-        console.error("マイルームの画像取得エラー:", error);
-        gallery.innerHTML = '<p>画像の読み込みに失敗しました。</p>';
-    }
-}
+    });
 
-async function showSchoolMode() {
-    const mainContent = document.getElementById('main-content');
-    const freeModeBtn = document.getElementById('free-mode-btn');
-    const myRoomBtn = document.getElementById('my-room-btn');
-    const schoolModeBtn = document.getElementById('school-mode-btn');
-    const groupId = localStorage.getItem('groupId');
-    const localUserId = localStorage.getItem('localUserId');
 
-    mainContent.innerHTML = `<h2>スクールモード</h2>`;
-    schoolModeBtn.classList.add('active');
-    freeModeBtn.classList.remove('active');
-    myRoomBtn.classList.remove('active');
+    // --- 各レイヤーの処理 ---
 
-    if (groupId) {
-        // グループ情報を取得して所有者かどうかを判断
-        const groupDoc = await db.collection('groups').doc(groupId).get();
-        const groupData = groupDoc.exists ? groupDoc.data() : {};
-        const isOwner = groupData.createdBy === localUserId;
+    /**
+     * レイヤー2: パスワード認証の初期化とロジック
+     */
+    function initializeLayer2() {
+        const loginBtn = document.getElementById('login-btn');
+        const userIdInput = document.getElementById('user-id');
+        const userPwInput = document.getElementById('user-pw');
+        const errorMessage = document.getElementById('login-error');
 
-        mainContent.innerHTML += `
-            <div class="school-mode-container">
-                <div class="school-mode-tabs">
-                    <button id="contact-book-tab" class="active">連絡帳</button>
-                    <button id="event-album-tab">イベントアルバム</button>
-                </div>
-                <div id="school-mode-content"></div>
-                <p class="group-info">
-                    招待コード: ${groupId}
-                    <button id="leave-group-btn">グループを抜ける</button>
-                    ${isOwner ? '<button id="delete-group-btn" class="danger">グループを削除</button>' : ''}
-                </p>
-            </div>
-        `;
-        document.getElementById('leave-group-btn').addEventListener('click', leaveGroup);
-        if (isOwner) {
-            document.getElementById('delete-group-btn').addEventListener('click', deleteGroup);
-        }
+        errorMessage.textContent = ''; // エラーメッセージをクリア
+        userIdInput.value = '';
+        userPwInput.value = '';
 
-        const contactBookTab = document.getElementById('contact-book-tab');
-        const eventAlbumTab = document.getElementById('event-album-tab');
+        // NOTE: イベントリスナーが重複して登録されるのを防ぐため、一度古いリスナーを削除する
+        const newLoginBtn = loginBtn.cloneNode(true);
+        loginBtn.parentNode.replaceChild(newLoginBtn, loginBtn);
 
-        // グループ情報を渡して連絡帳を表示
-        showContactBook(groupData);
+        newLoginBtn.addEventListener('click', () => {
+            const id = userIdInput.value;
+            const pw = userPwInput.value;
 
-        contactBookTab.addEventListener('click', () => {
-            contactBookTab.classList.add('active');
-            eventAlbumTab.classList.remove('active');
-            showContactBook(groupData);
+            if (testUser && id === testUser.id && pw === testUser.pw) {
+                authenticationSuccess();
+            } else {
+                errorMessage.textContent = 'ユーザーIDまたはパスワードが正しくありません。';
+                userIdInput.value = '';
+                userPwInput.value = '';
+            }
         });
-        eventAlbumTab.addEventListener('click', () => {
-            eventAlbumTab.classList.add('active');
-            contactBookTab.classList.remove('active');
-            showEventAlbum();
-        });
-
-    } else {
-        mainContent.innerHTML += `
-            <div id="group-join-form">
-                <p>グループに参加するか、新しいグループを作成してください。</p>
-                <input type="text" id="group-code-input" placeholder="招待コードを入力">
-                <button id="join-group-btn">参加</button>
-                <hr>
-                <button id="create-group-btn">新しいグループを作成</button>
-            </div>
-        `;
-        document.getElementById('join-group-btn').addEventListener('click', joinGroup);
-        document.getElementById('create-group-btn').addEventListener('click', createGroup);
-    }
-}
-
-
-// 5. フリーモード機能
-// =============================================
-
-/**
- * 投稿をCloudinaryとFirestoreに送信する関数
- */
-async function submitPost() {
-    const postTextInput = document.getElementById('post-text');
-    const postImageInput = document.getElementById('post-image');
-    const text = postTextInput.value.trim();
-
-    if (!text) {
-        showCustomAlert('テキストを入力してください。');
-        return;
     }
 
-    const file = postImageInput.files[0];
-    const localUserId = localStorage.getItem('localUserId');
-    const nickname = localStorage.getItem('nickname');
+    // --- 初期化処理 ---
 
-    try {
-        // IPアドレスを取得
-        const ipAddress = await getIpAddress();
-        if (!ipAddress) {
-            showCustomAlert('IPアドレスが取得できませんでした。投稿できません。');
-            return;
+    // アプリケーションの初期化
+    async function initialize() {
+        await loadUserData();
+        // 初期画面を表示
+        switchScreen(null);
+    }
+
+    /**
+     * レイヤー1: QRコード認証の初期化とロジック
+     */
+    async function initializeLayer1() {
+        const video = document.getElementById('qr-video');
+        const canvasElement = document.getElementById('qr-canvas');
+        const canvas = canvasElement.getContext('2d');
+        const noCameraFallback = document.getElementById('qr-no-camera');
+        let animationFrameId;
+
+        try {
+            // カメラアクセス
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            video.srcObject = currentStream;
+            video.setAttribute("playsinline", true); // iOS Safari対策
+            video.play();
+            animationFrameId = requestAnimationFrame(tick);
+        } catch (err) {
+            console.error("カメラアクセスエラー:", err);
+            noCameraFallback.style.display = 'block';
+
+            // 代替QRコードの生成
+            const qrCodeContainer = document.getElementById('fallback-qr-code');
+            qrCodeContainer.innerHTML = ''; // 既存のQRコードをクリア
+            new QRCode(qrCodeContainer, {
+                text: "https://example.com/auth_success?user=" + testUser.id,
+                width: 128,
+                height: 128,
+            });
+
+            // ダミーのポーリング処理で認証をシミュレート
+            setTimeout(() => {
+                authenticationSuccess();
+            }, 5000); // 5秒後に自動で成功
         }
 
-        let imageUrl = null;
-        // 画像があればCloudinaryにアップロード
-        if (file) {
-            imageUrl = await uploadToCloudinary(file);
-        }
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
 
-        // Firestoreに保存するデータを作成
-        const postData = {
-            text: text,
-            imageUrl: imageUrl,
-            localUserId: localUserId,
-            nickname: nickname,
-            ipAddress: ipAddress,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            // 24時間後のDateオブジェクトをexpireAtフィールドに設定
-            expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                if (code) {
+                    // QRコードを検出したらストリームを停止し、認証成功
+                    cancelAnimationFrame(animationFrameId);
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                    authenticationSuccess();
+                    return;
+                }
+            }
+            animationFrameId = requestAnimationFrame(tick);
+        }
+    }
+
+    /**
+     * レイヤー3: 多要素認証の初期化とロジック
+     */
+    function initializeLayer3() {
+        const step1 = document.getElementById('mfa-step-1');
+        const step2 = document.getElementById('mfa-step-2');
+        const loginBtn = document.getElementById('mfa-login-btn');
+        const userIdInput = document.getElementById('mfa-user-id');
+        const userPwInput = document.getElementById('mfa-user-pw');
+        const errorMessage = document.getElementById('mfa-error');
+        const patternContainer = document.getElementById('pattern-lock-container');
+
+        // 初期状態にリセット
+        step1.style.display = 'block';
+        step2.style.display = 'none';
+        errorMessage.textContent = '';
+        userIdInput.value = '';
+        userPwInput.value = '';
+
+        // パスワード認証
+        loginBtn.onclick = () => {
+            if (testUser && userIdInput.value === testUser.id && userPwInput.value === testUser.pw) {
+                step1.style.display = 'none';
+                step2.style.display = 'block';
+                createPatternLock();
+            } else {
+                errorMessage.textContent = 'ユーザーIDまたはパスワードが正しくありません。';
+            }
         };
 
-        // Firestoreにデータを追加
-        await db.collection('thoughts').add(postData);
+        // パターンロックの生成とロジック
+        function createPatternLock() {
+            patternContainer.innerHTML = '';
+            let selectedDots = [];
+            const correctPattern = '1-2-3-6-9';
 
-        // フォームをクリア
-        postTextInput.value = '';
-        postImageInput.value = '';
-
-        showCustomAlert('投稿しました！');
-
-    } catch (error) {
-        console.error('投稿エラー:', error);
-        showCustomAlert('投稿に失敗しました。');
-    }
-}
-
-/**
- * ファイルをCloudinaryにアップロードするヘルパー関数
- * @param {File} file アップロードするファイル
- * @returns {Promise<string>} アップロードされた画像のURL
- */
-function uploadToCloudinary(file) {
-    return new Promise((resolve, reject) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-        // 公式ドキュメントに基づき、Fetch APIを使用してアップロードを実行
-        fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            // ネットワークエラーだけでなく、Cloudinaryからのエラーレスポンスも考慮
-            if (!response.ok) {
-                // response.json()を待ってからエラーをrejectする
-                return response.json().then(errorData => {
-                    throw new Error(errorData.error.message || 'Cloudinary APIエラー');
+            for (let i = 1; i <= 9; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'pattern-dot';
+                dot.dataset.id = i;
+                dot.addEventListener('mousedown', () => {
+                    if (!selectedDots.includes(i)) {
+                        dot.classList.add('active');
+                        selectedDots.push(i);
+                    }
                 });
+                patternContainer.appendChild(dot);
             }
-            return response.json();
-        })
-        .then(data => {
-            // secure_urlが存在し、有効なURLであることを確認
-            if (data.secure_url) {
-                console.log('Cloudinaryへのアップロード成功:', data.secure_url);
-                resolve(data.secure_url);
-            } else {
-                // データは取得できたが、期待したURLが含まれていない場合
-                console.error('Cloudinaryからのレスポンスエラー:', data);
-                reject(new Error('アップロード後のURL取得に失敗しました。'));
-            }
-        })
-        .catch(error => {
-            // ネットワークエラーや上記でthrowされたエラーをキャッチ
-            console.error('Cloudinaryへのアップロード中にエラーが発生しました:', error);
-            reject(error); // エラーオブジェクトをそのまま次のcatchに渡す
-        });
-    });
-}
 
-/**
- * Firestoreの投稿をリアルタイムで監視し、タイムラインに表示する関数
- */
-function listenForPosts() {
-    const timeline = document.getElementById('timeline');
-    if (!timeline) return;
-
-    db.collection('thoughts').orderBy('createdAt', 'desc').onSnapshot((snapshot) => {
-        timeline.innerHTML = ''; // 既存の表示をクリア
-        snapshot.forEach(doc => {
-            const post = doc.data();
-            const postId = doc.id; // ドキュメントIDを取得
-            const postElement = renderPost(post, postId); // IDをrenderPostに渡す
-            timeline.appendChild(postElement);
-        });
-    }, (error) => {
-        console.error("タイムラインの取得に失敗しました:", error);
-    });
-}
-
-/**
- * 1つの投稿データからHTML要素を生成するヘルパー関数
- * @param {object} post 投稿データ
- * @param {string} postId FirestoreのドキュメントID
- * @returns {HTMLElement} 投稿を表すdiv要素
- */
-function renderPost(post, postId) {
-    const postDiv = document.createElement('div');
-    postDiv.className = 'post';
-
-    const nickname = post.nickname || 'ななしさん';
-    const text = post.text;
-    const imageUrl = post.imageUrl;
-    const reactions = post.reactions || {};
-
-    const timestamp = post.createdAt ? post.createdAt.toDate().toLocaleString('ja-JP') : '...';
-
-    let imageHTML = '';
-    if (imageUrl) {
-        // 画像がクリックされたときにopenImageModalを呼び出す
-        imageHTML = `<img src="${imageUrl}" alt="投稿画像" class="post-image" onclick="openImageModal('${imageUrl}')">`;
-    }
-
-    postDiv.innerHTML = `
-        <div class="post-header">
-            <strong>${nickname}</strong>
-            <span class="post-time">${timestamp}</span>
-        </div>
-        <p class="post-text">${text}</p>
-        ${imageHTML}
-        <div class="post-footer">
-            <button onclick="updateStampCount('${postId}', 'wakaru')">わかる</button>
-            <span id="stamp-wakaru-${postId}">${reactions.wakaru || 0}</span>
-            <button onclick="updateStampCount('${postId}', 'donmai')">ドンマイ</button>
-            <span id="stamp-donmai-${postId}">${reactions.donmai || 0}</span>
-        </div>
-    `;
-
-    return postDiv;
-}
-
-/**
- * 共感スタンプのカウントを更新する関数
- * @param {string} postId FirestoreのドキュメントID
- * @param {string} stampType スタンプの種類 ('wakaru', 'donmai' 등)
- */
-function updateStampCount(postId, stampType) {
-    const postRef = db.collection('thoughts').doc(postId);
-    const fieldToUpdate = `reactions.${stampType}`;
-
-    postRef.update({
-        [fieldToUpdate]: firebase.firestore.FieldValue.increment(1)
-    }).catch(error => {
-        console.error("スタンプの更新に失敗しました:", error);
-    });
-}
-
-
-// 6. スクールモード機能
-// =============================================
-
-/**
- * 新しいグループを作成する関数
- */
-async function createGroup() {
-    const newGroupId = `dual-${Math.random().toString(36).substring(2, 8)}`;
-
-    try {
-        await db.collection('groups').doc(newGroupId).set({
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: localStorage.getItem('localUserId')
-        });
-
-        localStorage.setItem('groupId', newGroupId);
-        showCustomAlert(`グループを作成しました！\n招待コード: ${newGroupId}`);
-        showSchoolMode(); // UIを更新
-    } catch (error) {
-        console.error("グループの作成に失敗しました:", error);
-        showCustomAlert("グループの作成に失敗しました。");
-    }
-}
-
-/**
- * 招待コードを使ってグループに参加する関数
- */
-async function joinGroup() {
-    const input = document.getElementById('group-code-input');
-    const groupId = input.value.trim();
-
-    if (!groupId) {
-        showCustomAlert("招待コードを入力してください。");
-        return;
-    }
-
-    try {
-        const groupRef = db.collection('groups').doc(groupId);
-        const doc = await groupRef.get();
-
-        if (doc.exists) {
-            localStorage.setItem('groupId', groupId);
-            showCustomAlert("グループに参加しました！");
-            showSchoolMode(); // UIを更新
-        } else {
-            showCustomAlert("その招待コードを持つグループは存在しません。");
+            // パターン入力完了（マウスボタンを離したとき）
+            document.body.onmouseup = () => {
+                if (selectedDots.length > 0) {
+                    const enteredPattern = selectedDots.join('-');
+                    if (enteredPattern === correctPattern) {
+                        authenticationSuccess();
+                    } else {
+                        errorMessage.textContent = 'パターンが正しくありません。';
+                        // UIをリセット
+                        setTimeout(() => {
+                           initializeLayer3();
+                        }, 500);
+                    }
+                    selectedDots = [];
+                }
+                 // イベントリスナーを一度きりにするため解除
+                document.body.onmouseup = null;
+            };
         }
-    } catch (error) {
-        console.error("グループの参加に失敗しました:", error);
-        showCustomAlert("グループへの参加に失敗しました。");
     }
-}
 
-/**
- * 現在参加しているグループから脱退する関数
- */
-function leaveGroup() {
-    showCustomConfirm("本当にグループを抜けますか？", () => {
-        localStorage.removeItem('groupId');
-        showCustomAlert("グループを抜けました。");
-        showSchoolMode(); // UIを更新
-    });
-}
-
-/**
- * グループを削除する関数（所有者のみ）
- */
-async function deleteGroup() {
-    const groupId = localStorage.getItem('groupId');
-    if (!groupId) return;
-
-    showCustomConfirm("本当にこのグループを削除しますか？\n連絡帳やアルバムのデータもすべて失われ、元に戻すことはできません。", async () => {
+    /**
+     * レイヤー4: 顔・虹彩認証の初期化とロジック
+     */
+    let faceApiModelsLoaded = false;
+    async function loadFaceApiModels() {
+        if (faceApiModelsLoaded) return;
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
         try {
-            // Firestoreからグループドキュメントを削除
-            await db.collection('groups').doc(groupId).delete();
-
-            // ※注：サブコレクション(messages, album)は自動では削除されないが、
-            // グループ本体がなくなるため、実質的にアクセス不能になる。
-
-            localStorage.removeItem('groupId');
-            showCustomAlert("グループを削除しました。");
-            showSchoolMode(); // UIを更新
+            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+            console.log('FaceAPIモデルの読み込み完了');
+            faceApiModelsLoaded = true;
         } catch (error) {
-            console.error("グループの削除に失敗しました:", error);
-            showCustomAlert("グループの削除に失敗しました。");
+            console.error('FaceAPIモデルの読み込みに失敗しました:', error);
         }
-    });
-}
-
-/**
- * スクールモードの連絡帳UIを表示・制御する関数
- */
-function showContactBook(groupData) { // groupDataを受け取る
-    const contentArea = document.getElementById('school-mode-content');
-    contentArea.innerHTML = `
-        <h3>連絡帳</h3>
-        <div id="contact-post-form">
-            <textarea id="contact-text" placeholder="メッセージを入力..." rows="3"></textarea>
-            <label><input type="radio" name="message-type" value="important" checked> 大事な連絡</label>
-            <label><input type="radio" name="message-type" value="chat"> 雑談</label>
-            <button id="submit-contact-btn">送信</button>
-        </div>
-        <div id="contact-timeline"></div>
-    `;
-
-    document.getElementById('submit-contact-btn').addEventListener('click', submitContactMessage);
-    listenForContactMessages(groupData); // groupDataを渡す
-}
-
-/**
- * 連絡帳に新しいメッセージを投稿する関数
- */
-async function submitContactMessage() {
-    const text = document.getElementById('contact-text').value.trim();
-    const type = document.querySelector('input[name="message-type"]:checked').value;
-    const groupId = localStorage.getItem('groupId');
-    if (!text || !groupId) return;
-
-    try {
-        await db.collection('groups').doc(groupId).collection('messages').add({
-            text: text,
-            type: type,
-            senderId: localStorage.getItem('localUserId'),
-            senderNickname: localStorage.getItem('nickname'),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        document.getElementById('contact-text').value = '';
-    } catch (error) {
-        console.error("連絡帳への投稿エラー:", error);
-        showCustomAlert("メッセージの送信に失敗しました。");
     }
-}
 
-/**
- * 連絡帳のメッセージをリアルタイムで監視・表示する関数
- */
-function listenForContactMessages(groupData) { // groupDataを受け取る
-    const timeline = document.getElementById('contact-timeline');
-    const groupId = localStorage.getItem('groupId');
-    const groupOwnerId = groupData.createdBy; // グループ作成者のIDを取得
-    if (!timeline || !groupId) return;
+    async function initializeLayer4() {
+        await loadFaceApiModels();
+        if (!faceApiModelsLoaded) {
+            alert('顔認証ライブラリの読み込みに失敗しました。');
+            return;
+        }
 
-    db.collection('groups').doc(groupId).collection('messages').orderBy('createdAt', 'desc')
-        .onSnapshot(snapshot => {
-            timeline.innerHTML = '';
-            snapshot.forEach(doc => {
-                const message = doc.data();
-                const isOwner = message.senderId === groupOwnerId; // 送信者が作成者か判定
-                const crownIcon = isOwner ? '👑' : ''; // 作成者なら王冠アイコンを表示
+        const video = document.getElementById('face-video');
+        const canvas = document.getElementById('face-canvas');
+        const statusEl = document.getElementById('face-status');
+        const noCameraFallback = document.getElementById('face-no-camera');
+        const context = canvas.getContext('2d');
+        let intervalId;
 
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message-item ${message.type}`; // 'important' or 'chat'
-                messageDiv.innerHTML = `
-                    <p><strong>${crownIcon}${message.senderNickname || 'ななしさん'}</strong></p>
-                    <p>${message.text}</p>
-                `;
-                timeline.appendChild(messageDiv);
+        statusEl.textContent = 'カメラを起動中...';
+
+        try {
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: {} });
+            video.srcObject = currentStream;
+            video.play();
+        } catch (err) {
+            console.error("カメラアクセスエラー:", err);
+            noCameraFallback.style.display = 'block';
+             // 代替QRコードの生成
+            const qrCodeContainer = document.getElementById('fallback-qr-code-face');
+            qrCodeContainer.innerHTML = '';
+            new QRCode(qrCodeContainer, {
+                text: "https://example.com/auth_success?user=" + testUser.id,
+                width: 128,
+                height: 128,
             });
+            setTimeout(() => {
+                authenticationSuccess();
+            }, 5000);
+            return;
+        }
+
+        video.addEventListener('play', () => {
+            const displaySize = { width: video.clientWidth, height: video.clientHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            let scanStep = 'face'; // 'face', 'scar', 'iris'
+            statusEl.textContent = '顔をカメラに向けてください';
+
+            intervalId = setInterval(async () => {
+                const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (detections) {
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+
+                    if (scanStep === 'face') {
+                        statusEl.textContent = '顔を認識しました... 傷をスキャン中...';
+                        scanStep = 'scar';
+                        // 傷スキャン演出
+                        setTimeout(() => {
+                            if (scanStep === 'scar') {
+                                const landmarks = resizedDetections.landmarks;
+                                const nose = landmarks.getNose();
+                                // 額の中心あたりにスキャンアニメーションを描画
+                                context.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                                context.fillRect(nose[0]._x - 20, nose[0]._y - 50, 40, 10);
+
+                                statusEl.textContent = '虹彩をスキャン中...';
+                                scanStep = 'iris';
+
+                                // 虹彩スキャン演出
+                                setTimeout(() => {
+                                    if(scanStep === 'iris') {
+                                        const leftEye = landmarks.getLeftEye();
+                                        const rightEye = landmarks.getRightEye();
+                                        context.beginPath();
+                                        context.arc(leftEye[0]._x, leftEye[0]._y, 10, 0, 2 * Math.PI);
+                                        context.arc(rightEye[3]._x, rightEye[3]._y, 10, 0, 2 * Math.PI);
+                                        context.strokeStyle = 'cyan';
+                                        context.lineWidth = 2;
+                                        context.stroke();
+
+                                        // 認証成功
+                                        clearInterval(intervalId);
+                                        if (currentStream) {
+                                            currentStream.getTracks().forEach(track => track.stop());
+                                            currentStream = null;
+                                        }
+                                        authenticationSuccess();
+                                    }
+                                }, 1500); // 1.5秒後に虹彩スキャン完了
+                            }
+                        }, 1500); // 1.5秒後に傷スキャン完了
+                    }
+                }
+            }, 100);
         });
-}
 
-
-/**
- * スクールモードのイベントアルバムUIを表示・制御する関数
- */
-function showEventAlbum() {
-    const contentArea = document.getElementById('school-mode-content');
-    contentArea.innerHTML = `
-        <h3>イベントアルバム</h3>
-        <input type="file" id="album-image-input" accept="image/*">
-        <div id="album-gallery" class="gallery-grid"></div>
-    `;
-
-    document.getElementById('album-image-input').addEventListener('change', uploadAlbumImage);
-    listenForAlbumImages();
-}
-
-/**
- * アルバムに画像をアップロードする関数
- * @param {Event} e input要素のchangeイベント
- */
-async function uploadAlbumImage(e) {
-    const file = e.target.files[0];
-    const groupId = localStorage.getItem('groupId');
-    if (!file || !groupId) return;
-
-    try {
-        const imageUrl = await uploadToCloudinary(file);
-        await db.collection('groups').doc(groupId).collection('album').add({
-            imageUrl: imageUrl,
-            uploaderId: localStorage.getItem('localUserId'),
-            uploaderNickname: localStorage.getItem('nickname'),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (error) {
-        console.error("アルバムへの画像アップロードエラー:", error);
-        showCustomAlert("画像のアップロードに失敗しました。");
+        // 戻るボタンが押されたときのために、intervalIdをグローバルで管理
+        const backBtn = document.querySelector('#layer-4-screen .back-btn');
+        backBtn.addEventListener('click', () => {
+            clearInterval(intervalId);
+        }, { once: true });
     }
-}
 
-/**
- * アルバムの画像をリアルタイムで監視・表示する関数
- */
-function listenForAlbumImages() {
-    const gallery = document.getElementById('album-gallery');
-    const groupId = localStorage.getItem('groupId');
-    if (!gallery || !groupId) return;
-
-    db.collection('groups').doc(groupId).collection('album').orderBy('createdAt', 'desc')
-        .onSnapshot(snapshot => {
-            gallery.innerHTML = '';
-            snapshot.forEach(doc => {
-                const imageData = doc.data();
-                const img = document.createElement('img');
-                img.src = imageData.imageUrl;
-                img.alt = 'アルバム画像';
-                gallery.appendChild(img);
-            });
-        });
-}
-
-// 7. 画像モーダル機能
-// =============================================
-
-/**
- * 画像モーダルを開く関数
- * @param {string} imageUrl 表示する画像のURL
- */
-function openImageModal(imageUrl) {
-    const modal = document.getElementById('image-modal');
-    const modalImage = document.getElementById('modal-image-content');
-
-    modalImage.src = imageUrl;
-    modal.style.display = 'flex';
-}
-
-// モーダルを閉じるためのイベントリスナー
-document.addEventListener('DOMContentLoaded', () => {
-    const modal = document.getElementById('image-modal');
-    if (modal) {
-        modal.addEventListener('click', () => {
-            modal.style.display = 'none';
-        });
-    }
+    initialize();
 });
