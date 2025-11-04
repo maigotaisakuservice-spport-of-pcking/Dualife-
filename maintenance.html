@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サーバーメンテナンス中</title>
+    <!-- Tailwind CSS CDNの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- フォント設定 -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background-color: #1a202c; /* ダークブルーの背景 */
+        }
+        /* 転送アニメーション用のCSS */
+        .transfer-spinner {
+            border-top-color: #10b981; /* green-500 */
+            border-right-color: #34d399; /* green-400 */
+            border-bottom-color: #34d399; /* green-400 */
+            border-left-color: #059669; /* green-600 */
+        }
+        .animate-delay-500 {
+            animation-delay: 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- メインコンテナ -->
+    <div id="app" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-gray-800 rounded-xl shadow-2xl p-8 transition duration-300">
+
+            <!-- タイトルとアイコン -->
+            <div class="text-center mb-8">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto text-yellow-400 animate-pulse">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 00.906.906l2.836-.708a.75.75 0 01.852 1.063l-.02.041M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                </svg>
+                <h1 class="text-3xl md:text-4xl font-extrabold text-white mt-4">サーバーメンテナンス中</h1>
+                <p class="text-gray-400 mt-2">ご不便をおかけして申し訳ございません。</p>
+            </div>
+
+            <!-- メンテナンス詳細 -->
+            <div class="bg-gray-700 p-6 rounded-lg mb-8">
+                <h2 class="text-xl font-semibold text-white mb-3">予定メンテナンス期間 (JST)</h2>
+                <p class="text-lg text-gray-300">
+                    <span class="font-bold text-yellow-300">毎週水曜日の 18:00</span> から
+                    <span class="font-bold text-yellow-300">当日 20:00</span> まで (2時間)
+                </p>
+            </div>
+
+            <!-- ステータスセクション (メンテナンス非アクティブ時) -->
+            <div id="status-inactive" class="hidden text-center">
+                <!-- IDを追加してJavaScriptで操作できるようにする -->
+                <p class="text-xl text-green-400 font-bold mb-4" id="inactive-status-title">メンテナンスは現在行われていません。</p>
+                
+                <!-- 強調された転送中アニメーション -->
+                <div class="mt-8 text-center">
+                    <div class="relative w-16 h-16 mx-auto">
+                        <!-- 外側のパルスリング -->
+                        <div class="absolute inset-0 border-4 border-green-500 rounded-full opacity-75 animate-ping"></div>
+                        <!-- 回転するインナーリング -->
+                        <div class="absolute inset-0 w-full h-full border-4 rounded-full animate-spin transfer-spinner"></div>
+                        <!-- 中央の矢印アイコン (SVG) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="absolute inset-0 w-8 h-8 m-auto text-green-400 z-10 transform -rotate-45">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+                        </svg>
+                    </div>
+                    <!-- メッセージ表示エリア: 初期テキストは空にし、JSで設定する -->
+                    <p class="text-xl text-green-400 font-bold mt-4 animate-pulse" id="redirect-message"></p>
+                </div>
+            </div>
+
+            <!-- ステータスセクション (メンテナンスアクティブ時) -->
+            <div id="status-active">
+                <!-- 見出し: 作業進行状況 -->
+                <h2 class="text-xl font-semibold text-white mb-2">作業進行状況</h2>
+
+                <!-- プログレスバー -->
+                <div class="relative pt-1">
+                    <div class="flex mb-2 items-center justify-between">
+                        <div class="text-right">
+                            <span id="progress-text" class="text-sm font-semibold inline-block text-yellow-300">
+                                0%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="overflow-hidden h-3 mb-4 text-xs flex rounded bg-gray-600">
+                        <div id="progress-bar" style="width:0%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-yellow-500 transition-all duration-1000 ease-out"></div>
+                    </div>
+                </div>
+
+                <!-- 作業完了見込み時間 -->
+                <div class="mt-6 p-4 bg-gray-700 rounded-lg">
+                    <p class="text-lg font-semibold text-gray-300">作業完了見込み時間 (JST):</p>
+                    <p id="estimated-completion" class="text-2xl font-bold text-yellow-300 mt-1">--</p>
+                </div>
+
+                <!-- 残り時間 -->
+                <div class="mt-4 p-4 bg-gray-700 rounded-lg">
+                    <p class="text-lg font-semibold text-gray-300">メンテナンス終了までの残り時間:</p>
+                    <p id="time-remaining" class="text-2xl font-bold text-white mt-1">--</p>
+                </div>
+            </div>
+
+            <!-- フッターメッセージ -->
+            <p class="text-center text-sm text-gray-500 mt-8">ご協力ありがとうございます。</p>
+
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        const MAINTENANCE_DAYS = [3];            // メンテナンスが行われる曜日 (3=水曜日)
+        const MAINTENANCE_HOUR_START = 18;       // メンテナンス開始時刻 (18:00)
+        const MAINTENANCE_HOUR_END = 20;         // メンテナンス終了時刻 (20:00) - ※期間計算用、ロジックではDurationを使用
+        const MAINTENANCE_DURATION_MS = 2 * 60 * 60 * 1000; // メンテナンス総時間 (2時間)
+        const MAIN_SITE_URL = '/';               // メインサイトのURL
+
+        // DOM要素の取得
+        const statusActive = document.getElementById('status-active');
+        const statusInactive = document.getElementById('status-inactive');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const estimatedCompletionElement = document.getElementById('estimated-completion');
+        const timeRemainingElement = document.getElementById('time-remaining');
+        const redirectMessage = document.getElementById('redirect-message');
+        // 新しく追加したID
+        const inactiveStatusTitle = document.getElementById('inactive-status-title');
+
+        /**
+         * 現在の時刻から、直近のメンテナンス期間（開始時刻と終了時刻）を計算します。
+         * @param {Date} now 現在時刻
+         * @returns {{start: Date, end: Date}} メンテナンス期間の開始と終了のDateオブジェクト
+         */
+        function getMaintenanceWindow(now) {
+            const NOW_TIME_MS = now.getTime();
+            let nearestStart = null;
+            let nearestEnd = null;
+
+            // 最大14日分（2週間）チェックして、現在進行中の期間、または最も近い未来の予定を見つける
+            for (let i = 0; i < 14; i++) {
+                const checkDate = new Date(now.getTime());
+                checkDate.setDate(now.getDate() + i);
+                const dayOfWeek = checkDate.getDay();
+
+                if (MAINTENANCE_DAYS.includes(dayOfWeek)) {
+                    // 候補の開始時刻 (その日の18:00)
+                    const candidateStart = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), MAINTENANCE_HOUR_START, 0, 0, 0);
+                    // 候補の終了時刻 (開始時刻 + 2時間 = 20:00)
+                    const candidateEnd = new Date(candidateStart.getTime() + MAINTENANCE_DURATION_MS);
+                    
+                    // 1. 現在メンテナンス期間中の場合 (終了の1分前までをアクティブと見なす)
+                    if (NOW_TIME_MS >= candidateStart.getTime() - 60000 && NOW_TIME_MS < candidateEnd.getTime()) {
+                        return { start: candidateStart, end: candidateEnd };
+                    }
+
+                    // 2. 次のメンテナンス開始予定の場合 (現在時刻より未来の開始予定時刻)
+                    if (candidateStart.getTime() > NOW_TIME_MS) {
+                        // nearestStartがまだ設定されていないか、この候補の方が近い場合
+                        if (nearestStart === null || candidateStart.getTime() < nearestStart.getTime()) {
+                            nearestStart = candidateStart;
+                            nearestEnd = candidateEnd;
+                        }
+                    }
+                }
+            }
+
+            // メンテナンス期間外の場合、最も近い未来の予定を返す
+            if (nearestStart) {
+                return { start: nearestStart, end: nearestEnd };
+            }
+            
+            // フォールバック: ロジックが想定外の場合、次の水曜日の期間を計算
+            const fallbackNow = new Date();
+            let daysUntilNextMaintenanceDay = (MAINTENANCE_DAYS[0] - fallbackNow.getDay() + 7) % 7;
+            if (daysUntilNextMaintenanceDay === 0 && fallbackNow.getHours() >= MAINTENANCE_HOUR_START) {
+                daysUntilNextMaintenanceDay = 7;
+            }
+            const nextStartTime = new Date(fallbackNow.getTime());
+            nextStartTime.setDate(fallbackNow.getDate() + daysUntilNextMaintenanceDay);
+            nextStartTime.setHours(MAINTENANCE_HOUR_START, 0, 0, 0);
+            const nextEndTime = new Date(nextStartTime.getTime() + MAINTENANCE_DURATION_MS);
+
+            return { start: nextStartTime, end: nextEndTime };
+        }
+
+        /**
+         * 2桁表示のためのヘルパー関数
+         * @param {number} n
+         * @returns {string}
+         */
+        function pad(n) {
+            return n < 10 ? '0' + n : n;
+        }
+
+        /**
+         * メンテナンスのステータスを更新し、UIを操作します。
+         */
+        function updateMaintenanceStatus() {
+            const now = new Date();
+            const { start: maintenanceStart, end: maintenanceEnd } = getMaintenanceWindow(now);
+
+            const nowTime = now.getTime();
+            const startTime = maintenanceStart.getTime();
+            const endTime = maintenanceEnd.getTime();
+
+            // 1. メンテナンス期間のアクティブチェック (開始1分前から終了時刻までをアクティブと見なす)
+            const isActive = nowTime >= startTime - 60000 && nowTime < endTime; 
+
+            if (!isActive) {
+                // 期間外: 非アクティブUIを表示し、自動転送を準備
+
+                statusActive.classList.add('hidden');
+                statusInactive.classList.remove('hidden');
+
+                const timeToNextStart = startTime - nowTime;
+                
+                // 次のメンテナンス開始までまだ時間がある場合
+                if (timeToNextStart > 0) {
+                    inactiveStatusTitle.textContent = 'メンテナンスは現在行われていません。';
+                    
+                    // 残り時間を分単位で表示
+                    const days = Math.floor(timeToNextStart / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((timeToNextStart % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.ceil((timeToNextStart % (1000 * 60 * 60)) / (1000 * 60));
+                    
+                    let timeText = '';
+                    if (days > 0) timeText += `${days}日`;
+                    if (hours > 0) timeText += `${hours}時間`;
+                    timeText += `${minutes}分`;
+                    
+                    // 次回開始までのメッセージは1行で表示
+                    redirectMessage.textContent = `次回メンテナンス開始まで ${timeText}`;
+                    
+                } else if (timeToNextStart <= 0 && timeToNextStart > -60000) {
+                     // メンテナンス終了直後（1分未満）
+                    inactiveStatusTitle.textContent = 'メンテナンスは完了しました！';
+                    // 転送中メッセージを2行で表示
+                    redirectMessage.innerHTML = '転送中です<br>まもなくサービスページへ転移します';
+                }
+                
+                // メンテナンス終了時刻から既に1分以上経過している場合、または開始時刻まで十分に時間がある場合、転送を実行
+                if (timeToNextStart < -60000 || timeToNextStart > 60000) {
+                    console.log('Maintenance window inactive. Redirecting to:', MAIN_SITE_URL);
+                    
+                    inactiveStatusTitle.textContent = 'メンテナンスは現在行われていません。';
+                    // 転送中メッセージを2行で表示
+                    redirectMessage.innerHTML = '転送中です<br>まもなくサービスページへ転移します';
+                    
+                    // 1.5秒後に転送を実行
+                    setTimeout(() => {
+                        window.location.href = MAIN_SITE_URL;
+                    }, 1500);
+                }
+
+
+            } else {
+                // 期間中: アクティブUIを表示し、進捗を計算
+                statusInactive.classList.add('hidden');
+                statusActive.classList.remove('hidden');
+
+                // 2. 進捗の計算
+                const elapsed = nowTime - startTime;
+                const totalDuration = endTime - startTime;
+                let progress = (elapsed / totalDuration) * 100;
+
+                // 終了時刻を過ぎた場合 (最大100%にクランプ)
+                if (progress >= 100) {
+                    progress = 100;
+                    // 完了した場合は、非アクティブ処理へ移行
+                    statusInactive.classList.remove('hidden');
+                    statusActive.classList.add('hidden');
+                    
+                    inactiveStatusTitle.textContent = 'メンテナンスは完了しました！';
+                    // 転送中メッセージを2行で表示
+                    redirectMessage.innerHTML = '転送中です<br>まもなくサービスページへ転移します';
+                    
+                    // 1.5秒後に転送を実行
+                    setTimeout(() => {
+                        window.location.href = index.html;
+                    }, 1500);
+                }
+
+                // 3. 残り時間の計算
+                const timeRemainingMs = endTime - nowTime;
+                const remainingHours = Math.floor(timeRemainingMs / (1000 * 60 * 60));
+                const remainingMinutes = Math.floor((timeRemainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                const remainingSeconds = Math.floor((timeRemainingMs % (1000 * 60)) / 1000);
+
+                // 4. UIの更新
+                progressBar.style.width = `${progress.toFixed(2)}%`;
+                progressText.textContent = `${progress.toFixed(2)}% 完了`;
+
+                estimatedCompletionElement.textContent = `${pad(maintenanceEnd.getHours())}:${pad(maintenanceEnd.getMinutes())} (${maintenanceEnd.getMonth() + 1}月${maintenanceEnd.getDate()}日)`;
+
+                timeRemainingElement.textContent = `${pad(remainingHours)}時間 ${pad(remainingMinutes)}分 ${pad(remainingSeconds)}秒`;
+            }
+        }
+
+        // ページロード時に初回実行し、その後1秒ごとに実行
+        window.onload = function() {
+            console.log("Maintenance script loaded.");
+            // 初回実行
+            updateMaintenanceStatus();
+            // 1秒ごとに更新
+            setInterval(updateMaintenanceStatus, 1000);
+        };
+    </script>
+</body>
+</html>
+
