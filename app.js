@@ -846,7 +846,7 @@ async function listenForContactMessages(groupData) {
 }
 
 function deleteContactMessage(messageId) {
-    const groupId = localStorage.getItem('groupId');
+    const groupId = localStorage.getItem('activeGroupId');
     if (!groupId) return;
 
     showCustomConfirm("この連絡を本当に削除しますか？", async () => {
@@ -907,7 +907,7 @@ async function uploadAlbumImage(e) {
  */
 function listenForAlbumImages() {
     const gallery = document.getElementById('album-gallery');
-    const groupId = localStorage.getItem('groupId');
+    const groupId = localStorage.getItem('activeGroupId');
     const localUserId = localStorage.getItem('localUserId');
     if (!gallery || !groupId) return;
 

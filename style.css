@@ -423,8 +423,8 @@ footer {
 }
 
 .message-item.emergency {
-    background-color: #fbe9e7;
-    border-left: 4px solid #ff5722;
+    background-color: #ffebee;
+    border-left: 4px solid #f44336;
 }
 
 .message-header {
